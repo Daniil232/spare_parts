@@ -2,11 +2,6 @@
 require_once '../includes/config.php';
 require_once '../includes/auth.php';
 requireLogin();
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
-}
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -18,9 +13,24 @@ if (!$part) {
     die("Запчасть не найдена");
 }
 
-$categories = $pdo->query("SELECT * FROM categories ORDER BY name")->fetchAll();
+// Получаем ВСЕ категории для выпадающего списка
+$allCategories = $pdo->query("SELECT id, parent_id, name FROM categories ORDER BY parent_id, name")->fetchAll();
 
-// Получаем фотографии
+// Функция построения дерева
+function buildCategorySelect($categories, $selectedId = null, $parentId = null, $level = 0) {
+    $html = '';
+    foreach ($categories as $cat) {
+        if ($cat['parent_id'] == $parentId) {
+            $indent = str_repeat('—', $level) . ($level > 0 ? ' ' : '');
+            $selected = ($selectedId == $cat['id']) ? 'selected="selected"' : '';
+            $html .= '<option value="' . $cat['id'] . '" ' . $selected . '>' . $indent . htmlspecialchars($cat['name']) . '</option>';
+            $html .= buildCategorySelect($categories, $selectedId, $cat['id'], $level + 1);
+        }
+    }
+    return $html;
+}
+
+// Получаем текущие фотографии
 $stmt = $pdo->prepare("SELECT * FROM photos WHERE part_id = ? ORDER BY sort_order");
 $stmt->execute([$id]);
 $photos = $stmt->fetchAll();
@@ -28,49 +38,34 @@ $photos = $stmt->fetchAll();
 $success = '';
 $error = '';
 
-// Обработка загрузки нескольких фото
+// Загрузка новых фотографий
 if (isset($_POST['upload_photos']) && isset($_FILES['photos'])) {
     $files = $_FILES['photos'];
-    $uploaded = 0;
-    $errors = [];
-    
-    // Получаем текущее количество фото
     $currentCount = count($photos);
+    $uploaded = 0;
     $maxPhotos = 5;
-    
-    // Проверяем, сколько фото можно загрузить
     $availableSlots = $maxPhotos - $currentCount;
     
     if ($availableSlots <= 0) {
         $error = "Максимум $maxPhotos фотографий. Удалите лишние перед загрузкой новых.";
     } else {
-        // Ограничиваем количество загружаемых файлов доступными слотами
         $fileCount = min(count($files['name']), $availableSlots);
-        
         for ($i = 0; $i < $fileCount; $i++) {
             if ($files['error'][$i] === UPLOAD_ERR_OK) {
                 $ext = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
                 $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                
-                if (!in_array($ext, $allowed)) {
-                    $errors[] = "Файл {$files['name'][$i]} имеет недопустимый формат";
-                    continue;
-                }
-                
-                $filename = time() . '_' . rand(1000, 9999) . '_' . $i . '.' . $ext;
-                $uploadPath = '../assets/uploads/parts/' . $filename;
-                
-                if (move_uploaded_file($files['tmp_name'][$i], $uploadPath)) {
-                    $sortOrder = $currentCount + $uploaded;
-                    $stmt = $pdo->prepare("INSERT INTO photos (part_id, file_path, sort_order, uploaded_at) VALUES (?, ?, ?, NOW())");
-                    $stmt->execute([$id, $filename, $sortOrder]);
-                    $uploaded++;
-                } else {
-                    $errors[] = "Ошибка загрузки файла {$files['name'][$i]}";
+                if (in_array($ext, $allowed)) {
+                    $filename = time() . '_' . rand(1000, 9999) . '_' . $i . '.' . $ext;
+                    $uploadPath = '../assets/uploads/parts/' . $filename;
+                    if (move_uploaded_file($files['tmp_name'][$i], $uploadPath)) {
+                        $sortOrder = $currentCount + $uploaded;
+                        $stmt = $pdo->prepare("INSERT INTO photos (part_id, file_path, sort_order, uploaded_at) VALUES (?, ?, ?, NOW())");
+                        $stmt->execute([$id, $filename, $sortOrder]);
+                        $uploaded++;
+                    }
                 }
             }
         }
-        
         if ($uploaded > 0) {
             $success = "Загружено фотографий: $uploaded";
             // Обновляем список фото
@@ -78,14 +73,10 @@ if (isset($_POST['upload_photos']) && isset($_FILES['photos'])) {
             $stmt->execute([$id]);
             $photos = $stmt->fetchAll();
         }
-        
-        if (!empty($errors)) {
-            $error = implode('<br>', $errors);
-        }
     }
 }
 
-// Удаление фото
+// Удаление фотографии
 if (isset($_GET['delete_photo'])) {
     $photoId = (int)$_GET['delete_photo'];
     $stmt = $pdo->prepare("SELECT file_path FROM photos WHERE id = ? AND part_id = ?");
@@ -110,47 +101,6 @@ if (isset($_GET['delete_photo'])) {
         $stmt->execute([$id]);
         $photos = $stmt->fetchAll();
     }
-}
-
-// Сортировка фото (вверх/вниз)
-if (isset($_GET['move_up'])) {
-    $photoId = (int)$_GET['move_up'];
-    foreach ($photos as $idx => $p) {
-        if ($p['id'] == $photoId && $idx > 0) {
-            // Меняем местами с предыдущим
-            $prevId = $photos[$idx-1]['id'];
-            $stmt = $pdo->prepare("UPDATE photos SET sort_order = ? WHERE id = ?");
-            $stmt->execute([$idx, $prevId]);
-            $stmt->execute([$idx-1, $photoId]);
-            break;
-        }
-    }
-    // Обновляем список
-    $stmt = $pdo->prepare("SELECT * FROM photos WHERE part_id = ? ORDER BY sort_order");
-    $stmt->execute([$id]);
-    $photos = $stmt->fetchAll();
-    header("Location: edit.php?id=$id");
-    exit;
-}
-
-if (isset($_GET['move_down'])) {
-    $photoId = (int)$_GET['move_down'];
-    foreach ($photos as $idx => $p) {
-        if ($p['id'] == $photoId && $idx < count($photos)-1) {
-            // Меняем местами со следующим
-            $nextId = $photos[$idx+1]['id'];
-            $stmt = $pdo->prepare("UPDATE photos SET sort_order = ? WHERE id = ?");
-            $stmt->execute([$idx, $nextId]);
-            $stmt->execute([$idx+1, $photoId]);
-            break;
-        }
-    }
-    // Обновляем список
-    $stmt = $pdo->prepare("SELECT * FROM photos WHERE part_id = ? ORDER BY sort_order");
-    $stmt->execute([$id]);
-    $photos = $stmt->fetchAll();
-    header("Location: edit.php?id=$id");
-    exit;
 }
 
 // Обновление информации о запчасти
@@ -184,24 +134,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Редактирование запчасти</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: #f0f2f5; padding: 30px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .card { background: white; border-radius: 24px; padding: 30px; margin-bottom: 20px; }
-        h1 { font-size: 24px; }
-        h2 { font-size: 18px; margin-bottom: 15px; }
-        .back-link { margin-bottom: 20px; display: inline-block; }
-        .btn-save { background: #2c3e50; color: white; border-radius: 40px; padding: 10px 25px; border: none; }
-        .form-control, .form-select { border-radius: 12px; }
-        label { font-weight: 500; }
-        .photo-item { display: inline-block; margin: 10px; text-align: center; vertical-align: top; }
-        .photo-item img { width: 100px; height: 100px; object-fit: cover; border-radius: 12px; }
-        .photo-item .photo-actions { margin-top: 5px; }
-        .photo-item .photo-actions a { margin: 0 3px; text-decoration: none; font-size: 14px; }
-        .current-photos { margin-top: 20px; }
-        .photo-limit { color: #6c757d; font-size: 12px; margin-top: 5px; }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif;padding:30px}
+        .container{max-width:800px;margin:0 auto}
+        .card{background:white;border-radius:24px;padding:32px;margin-bottom:24px}
+        h1{font-size:24px;margin-bottom:8px}
+        h2{font-size:18px;margin-bottom:16px}
+        .back-link{margin-bottom:20px;display:inline-block;color:#6c757d;text-decoration:none}
+        .btn-save{background:#2c3e50;color:white;border:none;border-radius:40px;padding:12px30px;cursor:pointer}
+        .btn-history{background:#17a2b8;text-decoration:none;display:inline-block;margin-left:10px}
+        .btn-upload{background:#27ae60;padding:10px20px}
+        .form-control,.form-select{border-radius:12px;padding:10px14px;border:1px solid #ddd;width:100%}
+        label{font-weight:500;margin-bottom:6px;display:block}
+        .form-text{font-size:12px;color:#6c757d;margin-top:4px}
+        .alert{border-radius:16px;padding:12px16px;margin-bottom:20px}
+        .row{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+        .col-md-6{flex:1;min-width:200px}
+        .photo-item{display:inline-block;margin:10px;text-align:center;vertical-align:top}
+        .photo-item img{width:100px;height:100px;object-fit:cover;border-radius:12px}
+        .photo-actions{margin-top:5px}
+        .photo-actions a{margin:0 3px;text-decoration:none;font-size:14px}
+        .current-photos{margin-top:20px}
+        .delete-photo{color:#dc3545}
     </style>
 </head>
 <body>
@@ -213,10 +171,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
         <h1>✏️ Редактирование запчасти</h1>
         <p class="text-muted mb-4">ID: <?= $part['id'] ?></p>
         
-        <?php if ($success): ?>
+        <?php if($success): ?>
             <div class="alert alert-success"><?= $success ?></div>
         <?php endif; ?>
-        <?php if ($error): ?>
+        <?php if($error): ?>
             <div class="alert alert-danger"><?= $error ?></div>
         <?php endif; ?>
         
@@ -252,12 +210,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
                     <label>Категория</label>
                     <select name="category_id" class="form-select">
                         <option value="">— Без категории —</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <option value="<?= $cat['id'] ?>" <?= $part['category_id'] == $cat['id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($cat['name']) ?>
-                            </option>
-                        <?php endforeach; ?>
+                        <?= buildCategorySelect($allCategories, $part['category_id']) ?>
                     </select>
+                    <div class="form-text">Выберите категорию из иерархического списка</div>
                 </div>
             </div>
             
@@ -266,42 +221,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
                 <textarea name="description" class="form-control" rows="4"><?= htmlspecialchars($part['description'] ?? '') ?></textarea>
             </div>
             
-            <button type="submit" name="update_part" class="btn-save">💾 Сохранить изменения</button>
-            <a href="add_operation.php?part_id=<?= $id ?>" class="btn-save" style="background: #17a2b8; text-decoration: none; display: inline-block; margin-left: 10px;">📜 История операций</a>
+            <div>
+                <button type="submit" name="update_part" class="btn-save">💾 Сохранить изменения</button>
+                <a href="add_operation.php?part_id=<?= $id ?>" class="btn-save btn-history">📜 История операций</a>
+            </div>
         </form>
     </div>
     
-    <!-- Загрузка нескольких фотографий -->
+    <!-- Загрузка фотографий -->
     <div class="card">
         <h2>📷 Загрузить фотографии</h2>
-        <p class="text-muted">Можно загрузить до 5 фотографий. Поддерживаются JPG, PNG, GIF, WEBP.</p>
         <form method="POST" enctype="multipart/form-data">
             <div class="mb-3">
                 <input type="file" name="photos[]" class="form-control" accept="image/*" multiple>
-                <div class="photo-limit">Выберите несколько файлов (Ctrl+клик или Shift+клик для выбора нескольких)</div>
+                <div class="form-text">Можно выбрать до 5 фотографий. Всего может быть максимум 5 фото.</div>
             </div>
-            <button type="submit" name="upload_photos" class="btn-save" style="background: #27ae60;">📤 Загрузить выбранные</button>
+            <button type="submit" name="upload_photos" class="btn-save btn-upload">📤 Загрузить</button>
         </form>
         
-        <?php if (count($photos) > 0): ?>
+        <?php if(count($photos) > 0): ?>
             <div class="current-photos">
                 <h2>📸 Текущие фотографии (<?= count($photos) ?>/5)</h2>
-                <div class="photo-list">
-                    <?php foreach ($photos as $idx => $photo): ?>
-                        <div class="photo-item">
-                            <img src="../assets/uploads/parts/<?= htmlspecialchars($photo['file_path']) ?>" alt="Фото">
-                            <div class="photo-actions">
-                                <?php if ($idx > 0): ?>
-                                    <a href="?id=<?= $id ?>&move_up=<?= $photo['id'] ?>">⬆️</a>
-                                <?php endif; ?>
-                                <?php if ($idx < count($photos) - 1): ?>
-                                    <a href="?id=<?= $id ?>&move_down=<?= $photo['id'] ?>">⬇️</a>
-                                <?php endif; ?>
-                                <a href="?id=<?= $id ?>&delete_photo=<?= $photo['id'] ?>" class="delete-photo" onclick="return confirm('Удалить фото?')">🗑️</a>
-                            </div>
+                <?php foreach ($photos as $photo): ?>
+                    <div class="photo-item">
+                        <img src="../assets/uploads/parts/<?= htmlspecialchars($photo['file_path']) ?>" alt="Фото">
+                        <div class="photo-actions">
+                            <a href="?id=<?= $id ?>&delete_photo=<?= $photo['id'] ?>" class="delete-photo" onclick="return confirm('Удалить фото?')">🗑️ Удалить</a>
                         </div>
-                    <?php endforeach; ?>
-                </div>
+                    </div>
+                <?php endforeach; ?>
             </div>
         <?php endif; ?>
     </div>
