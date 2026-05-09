@@ -67,6 +67,10 @@ switch($part['status']) {
         body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 20px; }
         .container { max-width: 550px; margin: 0 auto; }
         
+        /* Кнопка назад */
+        .back-button { display: inline-flex; align-items: center; gap: 8px; background: #f0f2f5; padding: 8px 16px; border-radius: 40px; text-decoration: none; color: #2c3e50; font-size: 14px; font-weight: 500; transition: 0.2s; }
+        .back-button:hover { background: #e0e0e0; }
+        
         /* Карточки */
         .card { background: white; border-radius: 24px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); border: 1px solid #eef2f6; }
         
@@ -78,11 +82,11 @@ switch($part['status']) {
         
         /* Бейдж статуса */
         .status-badge { display: inline-block; padding: 6px 16px; border-radius: 30px; font-size: 14px; font-weight: 600; margin-bottom: 16px; }
-        .status-in_stock { background: #e8f5e9; color: #2e7d32; border-left: 3px solid #2e7d32; }
-        .status-under_repair { background: #fff3e0; color: #e65100; border-left: 3px solid #e65100; }
-        .status-installed { background: #e3f2fd; color: #1565c0; border-left: 3px solid #1565c0; }
-        .status-sold { background: #eceff1; color: #546e7a; border-left: 3px solid #546e7a; }
-        .status-written_off { background: #ffebee; color: #c62828; border-left: 3px solid #c62828; }
+        .status-in_stock { background: #e8f5e9; color: #2e7d32; }
+        .status-under_repair { background: #fff3e0; color: #e65100; }
+        .status-installed { background: #e3f2fd; color: #1565c0; }
+        .status-sold { background: #eceff1; color: #546e7a; }
+        .status-written_off { background: #ffebee; color: #c62828; }
         
         /* Строка свойства */
         .prop-label { font-size: 12px; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; margin-bottom: 4px; }
@@ -110,7 +114,7 @@ switch($part['status']) {
         .photo-dots span { display: inline-block; width: 8px; height: 8px; background: #ccc; border-radius: 50%; margin: 0 4px; cursor: pointer; }
         .photo-dots span.active { background: #2c3e50; width: 10px; height: 10px; }
         
-        /* Навигация */
+        /* Навигация по фото */
         .photo-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
         .photo-nav button { background: #f0f2f5; border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 18px; cursor: pointer; }
         .photo-nav button:hover { background: #e0e0e0; }
@@ -118,6 +122,15 @@ switch($part['status']) {
 </head>
 <body>
 <div class="container">
+    
+    <!-- Кнопка назад (только для авторизованных) -->
+    <?php if (isset($_SESSION['user_id'])): ?>
+        <div style="margin-bottom: 15px;">
+            <a href="admin/index.php" class="back-button">
+                ← Назад в админ-панель
+            </a>
+        </div>
+    <?php endif; ?>
     
     <!-- ОСНОВНАЯ КАРТОЧКА ПАСПОРТА -->
     <div class="card">
@@ -206,6 +219,7 @@ switch($part['status']) {
     </div>
     
     <!-- QR-КОД -->
+    <?php if (isset($_SESSION['user_id'])): ?>
     <div class="card" style="text-align: center;">
         <div class="prop-label" style="margin-bottom: 10px;">QR-код запчасти</div>
         <a href="generate_qr.php?id=<?= $part['id'] ?>" class="btn-qr">
@@ -213,6 +227,7 @@ switch($part['status']) {
         </a>
         <p class="text-muted small mt-2" style="font-size: 11px;">Наклейте QR-код на запчасть для быстрого доступа к паспорту</p>
     </div>
+    <?php endif; ?>
     
     <!-- ID ЗАПЧАСТИ (НИЖНИЙ БЛОК) -->
     <div class="card" style="background: #f8f9fc; text-align: center;">
@@ -224,30 +239,25 @@ switch($part['status']) {
 
 <?php if (count($photos) > 1): ?>
 <script>
-    // Слайдер фотографий
     let currentIndex = 0;
     const totalPhotos = <?= count($photos) ?>;
     
     function showPhoto(index) {
-        // Скрываем все фото
         for (let i = 0; i < totalPhotos; i++) {
             const img = document.getElementById('photo_' + i);
             if (img) img.style.display = 'none';
             const dot = document.querySelector('.photo-dots span[data-index="' + i + '"]');
             if (dot) dot.classList.remove('active');
         }
-        // Показываем выбранное
         const currentImg = document.getElementById('photo_' + index);
         if (currentImg) currentImg.style.display = 'block';
         const currentDot = document.querySelector('.photo-dots span[data-index="' + index + '"]');
         if (currentDot) currentDot.classList.add('active');
         
-        // Управляем видимостью кнопки "Назад"
         const prevBtn = document.getElementById('prevPhoto');
         if (prevBtn) prevBtn.style.visibility = index === 0 ? 'hidden' : 'visible';
     }
     
-    // Обработчики для кнопок
     document.getElementById('prevPhoto')?.addEventListener('click', function() {
         if (currentIndex > 0) {
             currentIndex--;
@@ -262,7 +272,6 @@ switch($part['status']) {
         }
     });
     
-    // Обработчики для точек
     document.querySelectorAll('.photo-dots span').forEach(dot => {
         dot.addEventListener('click', function() {
             currentIndex = parseInt(this.getAttribute('data-index'));
@@ -270,7 +279,6 @@ switch($part['status']) {
         });
     });
     
-    // Инициализация
     if (totalPhotos > 1) {
         const prevBtn = document.getElementById('prevPhoto');
         if (prevBtn) prevBtn.style.visibility = 'hidden';

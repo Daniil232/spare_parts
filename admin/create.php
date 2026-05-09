@@ -1,5 +1,7 @@
 <?php
 require_once '../includes/config.php';
+require_once '../includes/auth.php';
+requireLogin();
 session_start();
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -29,13 +31,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$name, $catalog_number, $description, $status, $location, $category_id ?: null, $_SESSION['user_id']]);
         $partId = $pdo->lastInsertId();
         
+        // Добавление начальной операции
         $stmt = $pdo->prepare("
             INSERT INTO operations (part_id, operation_type, description, date, created_at)
             VALUES (?, 'arrival', ?, NOW(), NOW())
         ");
         $stmt->execute([$partId, "Создание цифрового паспорта: " . $name]);
         
-        $success = "Запчасть успешно создана! <a href='index.php'>Вернуться к списку</a>";
+        // Загрузка нескольких фото
+        $uploaded = 0;
+        if (isset($_FILES['photos']) && !empty($_FILES['photos']['name'][0])) {
+            $files = $_FILES['photos'];
+            $maxPhotos = 5;
+            
+            for ($i = 0; $i < min(count($files['name']), $maxPhotos); $i++) {
+                if ($files['error'][$i] === UPLOAD_ERR_OK) {
+                    $ext = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
+                    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                    
+                    if (in_array($ext, $allowed)) {
+                        $filename = time() . '_' . rand(1000, 9999) . '_' . $i . '.' . $ext;
+                        $uploadPath = '../assets/uploads/parts/' . $filename;
+                        
+                        if (move_uploaded_file($files['tmp_name'][$i], $uploadPath)) {
+                            $stmt = $pdo->prepare("INSERT INTO photos (part_id, file_path, sort_order, uploaded_at) VALUES (?, ?, ?, NOW())");
+                            $stmt->execute([$partId, $filename, $uploaded]);
+                            $uploaded++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        $success = "Запчасть успешно создана! Загружено фото: $uploaded. <a href='index.php'>Вернуться к списку</a>";
     }
 }
 ?>
@@ -49,13 +77,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <style>
         body { background: #f0f2f5; padding: 30px; }
         .container { max-width: 700px; margin: 0 auto; }
-        .card { background: white; border-radius: 24px; padding: 30px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
-        h1 { font-size: 24px; margin-bottom: 8px; }
+        .card { background: white; border-radius: 24px; padding: 30px; }
+        h1 { font-size: 24px; }
         .back-link { margin-bottom: 20px; display: inline-block; }
         .btn-save { background: #2c3e50; color: white; border: none; border-radius: 40px; padding: 12px 30px; }
-        .form-control, .form-select { border-radius: 12px; padding: 10px 15px; }
-        label { font-weight: 500; margin-bottom: 6px; }
-        .alert { border-radius: 16px; }
+        .form-control, .form-select { border-radius: 12px; }
+        label { font-weight: 500; }
+        .photo-limit { color: #6c757d; font-size: 12px; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -73,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger"><?= $error ?></div>
         <?php endif; ?>
         
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <div class="mb-3">
                 <label>Наименование *</label>
                 <input type="text" name="name" class="form-control" required>
@@ -110,6 +138,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php endforeach; ?>
                     </select>
                 </div>
+            </div>
+            
+            <div class="mb-3">
+                <label>Фотографии</label>
+                <input type="file" name="photos[]" class="form-control" accept="image/*" multiple>
+                <div class="photo-limit">Можно выбрать до 5 фотографий (Ctrl+клик для выбора нескольких)</div>
             </div>
             
             <div class="mb-4">
