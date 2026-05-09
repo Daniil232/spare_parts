@@ -46,12 +46,19 @@ switch($part['status']) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
-        body{background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif;padding:20px}
+        body{background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif}
         .container{max-width:550px;margin:0 auto}
         .card{background:white;border-radius:24px;padding:20px;margin-bottom:16px}
         .part-id{font-size:12px;color:#6c757d;margin-bottom:8px}
         .part-name{font-size:24px;font-weight:700;margin-bottom:12px}
-        .status-badge{display:inline-block;padding:6px16px;border-radius:30px;font-size:14px;font-weight:600;margin-bottom:16px}
+        .status-badge { 
+            display: inline-block; 
+            padding: 8px 20px;           /* было 6px 16px — увеличили */
+            border-radius: 30px; 
+            font-size: 15px;             /* было 14px — чуть увеличили */
+            font-weight: 600; 
+            margin-bottom: 16px;
+        }
         .status-in_stock{background:#e8f5e9;color:#2e7d32}
         .status-under_repair{background:#fff3e0;color:#e65100}
         .status-installed{background:#e3f2fd;color:#1565c0}
@@ -154,11 +161,9 @@ switch($part['status']) {
                         <?php
                             switch($op['operation_type']) {
                                 case 'arrival': echo '📦 Поступление'; break;
-                                case 'diagnostic': echo '🔍 Диагностика'; break;
                                 case 'repair': echo '🔧 Ремонт'; break;
                                 case 'install': echo '🔩 Установка'; break;
                                 case 'sale': echo '💰 Продажа'; break;
-                                case 'warranty': echo '🛡️ Гарантия'; break;
                                 case 'write_off': echo '📄 Списание'; break;
                                 default: echo $op['operation_type'];
                             }
@@ -177,7 +182,7 @@ switch($part['status']) {
         <div class="prop-value" style="font-size:20px;font-weight:700">#<?= $part['id'] ?></div>
     </div>
 </div>
-
+<?php include 'includes/footer.php'; ?>
 <!-- Модальное окно для увеличения фото -->
 <div id="photoModal" class="modal-photo" onclick="closeModal()">
     <span class="close-btn" onclick="closeModal()">✕</span>
@@ -252,5 +257,6 @@ document.addEventListener('keydown', function(e) {
     }
 });
 </script>
+
 </body>
 </html>

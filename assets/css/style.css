@@ -329,3 +329,91 @@ tbody tr:hover {
         margin-top: 8px;
     }
 }
+
+/* Левое меню (категории) */
+.sidebar {
+    width: 280px;
+    background: white;
+    border-right: 1px solid #eef2f6;
+    padding: 12px 0;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+    position: sticky;
+    top: 56px;
+}
+
+.sidebar-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6c757d;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid #eef2f6;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.category-item {
+    list-style: none;
+    user-select: none;
+}
+
+.category-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 16px;
+    gap: 6px;
+}
+
+/* Стрелка (треугольник) */
+.toggle-icon {
+    display: inline-block;
+    width: 18px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #6c757d;
+    cursor: pointer;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.toggle-icon:hover {
+    color: #2c3e50;
+}
+
+.toggle-icon.empty {
+    opacity: 0;
+    cursor: default;
+    pointer-events: none;
+}
+
+/* Ссылка категории */
+.category-link {
+    font-size: 14px;
+    color: #2c3e50;
+    text-decoration: none;
+    cursor: pointer;
+    flex: 1;
+    transition: color 0.15s;
+}
+
+.category-link:hover {
+    color: #1a252f;
+    text-decoration: underline;
+}
+
+.category-item.active .category-link {
+    color: #2c3e50;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+/* Подкатегории */
+.subcategories {
+    margin-left: 28px;
+}
+
+.site-footer {
+    width: 100%;
+    box-sizing: border-box;
+}

@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .card{background:white;border-radius:24px;padding:32px}
         h1{font-size:24px;margin-bottom:8px}
         .back-link{margin-bottom:20px;display:inline-block;color:#6c757d;text-decoration:none}
-        .btn-save{background:#2c3e50;color:white;border:none;border-radius:40px;padding:12px30px;cursor:pointer}
+        .btn-save{background:#2c3e50;color:white;border:none;border-radius:40px;padding:12px30px;cursor:pointer; font-size: 15px;padding: 8px 20px;}
         .form-control,.form-select{border-radius:12px;padding:10px14px;border:1px solid #ddd;width:100%}
         label{font-weight:500;margin-bottom:6px;display:block}
         .form-text{font-size:12px;color:#6c757d;margin-top:4px}
@@ -162,5 +162,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
     </div>
 </div>
+<?php include '../includes/footer.php'; ?>
 </body>
 </html>

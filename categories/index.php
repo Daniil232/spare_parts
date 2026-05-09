@@ -183,5 +183,6 @@ function buildCategoryTreeSelect($categories, $selectedId = null, $parentId = nu
         </div>
     </div>
 </div>
+<?php include '../includes/footer.php'; ?>
 </body>
 </html>

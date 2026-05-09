@@ -79,24 +79,36 @@ if (isset($_POST['upload_photos']) && isset($_FILES['photos'])) {
 // Удаление фотографии
 if (isset($_GET['delete_photo'])) {
     $photoId = (int)$_GET['delete_photo'];
+    
+    // Получаем путь к файлу
     $stmt = $pdo->prepare("SELECT file_path FROM photos WHERE id = ? AND part_id = ?");
     $stmt->execute([$photoId, $id]);
     $photo = $stmt->fetch();
+    
     if ($photo) {
+        // 1. Удаляем файл с сервера
         $filePath = '../assets/uploads/parts/' . $photo['file_path'];
-        if (file_exists($filePath)) unlink($filePath);
+        if (file_exists($filePath)) {
+            unlink($filePath);
+        }
+        
+        // 2. Удаляем запись из базы данных
         $stmt = $pdo->prepare("DELETE FROM photos WHERE id = ?");
         $stmt->execute([$photoId]);
-        $success = "Фотография удалена";
-        // Обновляем порядок сортировки
-        $stmt = $pdo->prepare("SELECT * FROM photos WHERE part_id = ? ORDER BY sort_order");
+        
+        // 3. Обновляем порядок сортировки оставшихся фотографий
+        $stmt = $pdo->prepare("SELECT id FROM photos WHERE part_id = ? ORDER BY sort_order");
         $stmt->execute([$id]);
-        $newPhotos = $stmt->fetchAll();
-        foreach ($newPhotos as $idx => $p) {
+        $remainingPhotos = $stmt->fetchAll();
+        
+        foreach ($remainingPhotos as $index => $row) {
             $stmt = $pdo->prepare("UPDATE photos SET sort_order = ? WHERE id = ?");
-            $stmt->execute([$idx, $p['id']]);
+            $stmt->execute([$index, $row['id']]);
         }
-        // Обновляем список фото
+        
+        $success = "Фотография удалена";
+        
+        // 4. Обновляем список фотографий для отображения
         $stmt = $pdo->prepare("SELECT * FROM photos WHERE part_id = ? ORDER BY sort_order");
         $stmt->execute([$id]);
         $photos = $stmt->fetchAll();
@@ -145,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
         h1{font-size:24px;margin-bottom:8px}
         h2{font-size:18px;margin-bottom:16px}
         .back-link{margin-bottom:20px;display:inline-block;color:#6c757d;text-decoration:none}
-        .btn-save{background:#2c3e50;color:white;border:none;border-radius:40px;padding:12px30px;cursor:pointer}
+        .btn-save{background:#2c3e50;color:white;border:none;border-radius:40px;padding:12px30px;cursor:pointer; font-size: 15px;padding: 8px 20px;}
         .btn-history{background:#17a2b8;text-decoration:none;display:inline-block;margin-left:10px}
         .btn-upload{background:#27ae60;padding:10px20px}
         .form-control,.form-select{border-radius:12px;padding:10px14px;border:1px solid #ddd;width:100%}
@@ -254,5 +266,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
         <?php endif; ?>
     </div>
 </div>
+<?php include '../includes/footer.php'; ?>
 </body>
 </html>

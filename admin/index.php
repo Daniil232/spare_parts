@@ -11,7 +11,6 @@ $category_filter = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
 // Если выбрана категория, получаем все её подкатегории включительно
 $category_ids = [];
 if ($category_filter > 0) {
-    // Рекурсивно получаем все ID подкатегорий
     $stmt = $pdo->prepare("
         WITH RECURSIVE cat_tree AS (
             SELECT id FROM categories WHERE id = ?
@@ -58,9 +57,8 @@ $stmt->execute($params);
 $parts = $stmt->fetchAll();
 
 // Получаем все категории для дерева
-$categories = $pdo->query("SELECT * FROM categories ORDER BY name")->fetchAll();
+$categories = $pdo->query("SELECT id, parent_id, name FROM categories ORDER BY name")->fetchAll();
 
-// Статусы для фильтра
 $statuses = [
     'in_stock' => 'В наличии',
     'under_repair' => 'В ремонте',
@@ -69,17 +67,33 @@ $statuses = [
     'written_off' => 'Списана'
 ];
 
-// Функция построения дерева категорий
 function buildCategoryTree($categories, $parentId = null, $level = 0) {
     $html = '';
     foreach ($categories as $cat) {
         if ($cat['parent_id'] == $parentId) {
-            $indent = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $level);
-            $icon = $level == 0 ? '📁 ' : '📂 ';
+            $hasChildren = false;
+            foreach ($categories as $c) {
+                if ($c['parent_id'] == $cat['id']) {
+                    $hasChildren = true;
+                    break;
+                }
+            }
+            
+            $icon = ($level == 0) ? '📁' : '';
+            $toggleIcon = $hasChildren ? '<span class="toggle-icon">►</span>' : '<span class="toggle-icon empty">►</span>';
+            
             $html .= '<div class="category-item" data-cat-id="' . $cat['id'] . '">';
-            $html .= '<span class="category-name">' . $indent . $icon . htmlspecialchars($cat['name']) . '</span>';
+            $html .= '<div class="category-row">';
+            $html .= $toggleIcon;
+            $html .= '<span class="category-link">' . $icon . htmlspecialchars($cat['name']) . '</span>';
             $html .= '</div>';
-            $html .= buildCategoryTree($categories, $cat['id'], $level + 1);
+            
+            if ($hasChildren) {
+                $html .= '<div class="subcategories" data-parent="' . $cat['id'] . '" style="display: none;">';
+                $html .= buildCategoryTree($categories, $cat['id'], $level + 1);
+                $html .= '</div>';
+            }
+            $html .= '</div>';
         }
     }
     return $html;
@@ -95,11 +109,7 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #f0f2f5;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            overflow-x: hidden;
-        }
+        body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
         
         /* Шапка */
         .top-header {
@@ -115,10 +125,7 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             top: 0;
             z-index: 100;
         }
-        .logo {
-            font-size: 16px;
-            font-weight: 600;
-        }
+        .logo { font-size: 16px; font-weight: 600; }
         .logo span { font-size: 22px; margin-right: 6px; }
         .nav-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
         .nav-buttons a {
@@ -128,11 +135,8 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             border-radius: 40px;
             background: rgba(255,255,255,0.1);
             font-size: 13px;
-            transition: 0.2s;
         }
         .nav-buttons a:hover { background: rgba(255,255,255,0.2); }
-        
-        /* Кнопка для мобильного меню */
         .menu-toggle {
             display: none;
             background: rgba(255,255,255,0.1);
@@ -141,70 +145,77 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             padding: 8px 16px;
             border-radius: 40px;
             cursor: pointer;
-            font-size: 14px;
         }
         
         /* Основной макет */
-        .main-layout {
-            display: flex;
-            min-height: calc(100vh - 56px);
-        }
+        .main-layout { display: flex; min-height: calc(100vh - 56px); }
         
-        /* Левое меню (категории) */
+        /* Левое меню */
         .sidebar {
             width: 280px;
             background: white;
             border-right: 1px solid #eef2f6;
-            padding: 16px 0;
+            padding: 12px 0;
             height: calc(100vh - 56px);
             overflow-y: auto;
             position: sticky;
             top: 56px;
-            transition: transform 0.3s ease;
         }
         .sidebar-title {
-            font-size: 13px;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 600;
             text-transform: uppercase;
             color: #6c757d;
             padding: 0 16px 12px;
             border-bottom: 1px solid #eef2f6;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
-        .category-item {
-            padding: 8px 16px;
+        
+        /* Категории */
+        .category-item { list-style: none; }
+        .category-row {
+            display: flex;
+            align-items: center;
+            padding: 5px 16px;
+            gap: 6px;
+        }
+        .toggle-icon {
+            width: 18px;
+            font-size: 11px;
+            color: #8b92a5;
             cursor: pointer;
-            transition: background 0.2s;
-            border-left: 3px solid transparent;
+            text-align: center;
+            flex-shrink: 0;
         }
-        .category-item:hover {
-            background: #e8f4f8;
-        }
-        .category-item.active {
-            background: #e8f4f8;
-            border-left-color: #2c3e50;
-        }
-        .category-name {
-            font-size: 14px;
-            color: #1a1a2e;
-        }
-        
-        /* Правая часть (контент) */
-        .content {
+        .toggle-icon:hover { color: #2c3e50; }
+        .toggle-icon.empty { opacity: 0; cursor: default; pointer-events: none; }
+        .category-link {
+            font-size: 13px;
+            color: #2c3e50;
+            text-decoration: none;
+            cursor: pointer;
             flex: 1;
-            padding: 20px;
-            overflow-x: auto;
         }
+        .category-link:hover {
+            color: #1a252f;
+            text-decoration: underline;
+        }
+        .category-item.active .category-link {
+            font-weight: 600;
+            text-decoration: underline;
+        }
+        .subcategories { margin-left: 14px; }
         
-        /* Кнопки */
+        /* Правая часть */
+        .content { flex: 1; padding: 20px; overflow-x: auto; }
         .btn-add {
             background: #2c3e50;
             color: white;
             padding: 6px 16px;
             border-radius: 40px;
             text-decoration: none;
-            display: inline-block;
             font-size: 13px;
+            display: inline-block;
         }
         .btn-add:hover { background: #1a252f; color: white; }
         
@@ -221,7 +232,13 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
         tbody tr { cursor: pointer; transition: background 0.2s; }
         tbody tr:hover { background: #e8f4f8; }
         
-        .status-badge { display: inline-block; padding: 3px 10px; border-radius: 30px; font-size: 11px; font-weight: 600; }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 30px;
+            font-size: 11px;
+            font-weight: 600;
+        }
         .status-in_stock { background: #e8f5e9; color: #2e7d32; }
         .status-under_repair { background: #fff3e0; color: #e65100; }
         .status-installed { background: #e3f2fd; color: #1565c0; }
@@ -248,24 +265,15 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             flex: 1;
             min-width: 150px;
         }
-        .filter-btn {
-            background: #2c3e50;
-            color: white;
+        .filter-btn, .reset-btn {
             border: none;
             border-radius: 40px;
             padding: 8px 18px;
             cursor: pointer;
         }
-        .reset-btn {
-            background: #6c757d;
-            color: white;
-            border: none;
-            border-radius: 40px;
-            padding: 8px 18px;
-            cursor: pointer;
-        }
+        .filter-btn { background: #2c3e50; color: white; }
+        .reset-btn { background: #6c757d; color: white; }
         
-        /* Мобильная версия */
         @media (max-width: 768px) {
             .sidebar {
                 position: fixed;
@@ -276,32 +284,17 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
                 width: 260px;
                 box-shadow: 2px 0 10px rgba(0,0,0,0.1);
             }
-            .sidebar.open {
-                transform: translateX(0);
-            }
-            .menu-toggle {
-                display: inline-block;
-            }
-            .content {
-                padding: 12px;
-            }
-            .filter-bar input, .filter-bar select {
-                width: 100%;
-            }
-            .nav-buttons a {
-                font-size: 11px;
-                padding: 4px 10px;
-            }
+            .sidebar.open { transform: translateX(0); }
+            .menu-toggle { display: inline-block; }
+            .content { padding: 12px; }
+            .filter-bar input, .filter-bar select { width: 100%; }
         }
     </style>
 </head>
 <body>
 
-<!-- Шапка -->
 <div class="top-header">
-    <div class="logo">
-        <span>🔧</span> Цифровые паспорта
-    </div>
+    <div class="logo"><span>🔧</span> Цифровые паспорта</div>
     <button class="menu-toggle" onclick="toggleSidebar()">📁 Категории</button>
     <div class="nav-buttons">
         <a href="create.php">+ Новая запчасть</a>
@@ -314,20 +307,19 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
     </div>
 </div>
 
-<!-- Основной макет -->
 <div class="main-layout">
-    <!-- Левое меню с категориями -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-title">📁 КАТАЛОГ ЗАПЧАСТЕЙ</div>
-        <div class="category-item" data-cat-id="0" onclick="filterByCategory(0)">
-            <span class="category-name">📂 Все запчасти</span>
+        <div class="category-item" data-cat-id="0">
+            <div class="category-row">
+                <span class="toggle-icon empty">►</span>
+                <span class="category-link">📂 Все запчасти</span>
+            </div>
         </div>
         <?= buildCategoryTree($categories) ?>
     </div>
     
-    <!-- Правая часть -->
     <div class="content">
-        <!-- Фильтры -->
         <div class="filter-bar">
             <input type="text" id="searchInput" placeholder="🔍 Поиск по названию или артикулу" value="<?= htmlspecialchars($search) ?>">
             <select id="statusFilter">
@@ -340,41 +332,35 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             <button class="reset-btn" onclick="resetFilters()">Сбросить</button>
         </div>
         
-        <!-- Таблица запчастей -->
         <div class="table-card">
             <table>
                 <thead>
                     <tr><th>ID</th><th>Наименование</th><th>Кат.номер</th><th>Статус</th><th>QR</th><th>Действия</th></tr>
                 </thead>
-                <tbody id="partsTable">
-                    <?php if (count($parts) > 0): ?>
-                        <?php foreach ($parts as $p): 
-                            switch($p['status']) {
-                                case 'in_stock': $status_text = 'В наличии'; $status_class = 'status-in_stock'; break;
-                                case 'under_repair': $status_text = 'В ремонте'; $status_class = 'status-under_repair'; break;
-                                case 'installed': $status_text = 'Установлена'; $status_class = 'status-installed'; break;
-                                case 'sold': $status_text = 'Продана'; $status_class = 'status-sold'; break;
-                                case 'written_off': $status_text = 'Списана'; $status_class = 'status-written_off'; break;
-                                default: $status_text = $p['status']; $status_class = '';
-                            }
-                        ?>
-                            <tr onclick="viewPart(<?= $p['id'] ?>)">
-                                <td><?= $p['id'] ?></td>
-                                <td><strong><?= htmlspecialchars($p['name']) ?></strong><br><small class="text-muted"><?= htmlspecialchars($p['category_name'] ?? '—') ?></small></td>
-                                <td><?= htmlspecialchars($p['catalog_number'] ?? '—') ?></td>
-                                <td><span class="status-badge <?= $status_class ?>"><?= $status_text ?></span></td>
-                                <td><a href="../generate_qr.php?id=<?= $p['id'] ?>" class="action-link" onclick="event.stopPropagation()">📷</a></td>
-                                <td>
-                                    <a href="edit.php?id=<?= $p['id'] ?>" class="action-link" onclick="event.stopPropagation()">✏️</a>
-                                    <?php if (isAdmin()): ?>
-                                        <button class="action-link delete-btn" style="background:none; border:none; cursor:pointer;" data-id="<?= $p['id'] ?>" data-name="<?= htmlspecialchars($p['name']) ?>" onclick="event.stopPropagation(); deletePart(this)">🗑️</button>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="6" style="text-align: center;">Нет запчастей</td></tr>
-                    <?php endif; ?>
+                <tbody>
+                    <?php foreach ($parts as $p): 
+                        switch($p['status']) {
+                            case 'in_stock': $st = 'В наличии'; $sc = 'status-in_stock'; break;
+                            case 'under_repair': $st = 'В ремонте'; $sc = 'status-under_repair'; break;
+                            case 'installed': $st = 'Установлена'; $sc = 'status-installed'; break;
+                            case 'sold': $st = 'Продана'; $sc = 'status-sold'; break;
+                            default: $st = 'Списана'; $sc = 'status-written_off';
+                        }
+                    ?>
+                        <tr onclick="viewPart(<?= $p['id'] ?>)">
+                            <td><?= $p['id'] ?></td>
+                            <td><strong><?= htmlspecialchars($p['name']) ?></strong><br><small><?= htmlspecialchars($p['category_name'] ?? '—') ?></small></td>
+                            <td><?= htmlspecialchars($p['catalog_number'] ?? '—') ?></td>
+                            <td><span class="status-badge <?= $sc ?>"><?= $st ?></span></td>
+                            <td><a href="../generate_qr.php?id=<?= $p['id'] ?>" class="action-link" onclick="event.stopPropagation()">📷</a></td>
+                            <td>
+                                <a href="edit.php?id=<?= $p['id'] ?>" class="action-link" onclick="event.stopPropagation()">✏️</a>
+                                <?php if (isAdmin()): ?>
+                                    <button class="action-link delete-btn" style="background:none; border:none; cursor:pointer;" data-id="<?= $p['id'] ?>" data-name="<?= htmlspecialchars($p['name']) ?>" onclick="event.stopPropagation(); deletePart(this)">🗑️</button>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
@@ -382,81 +368,100 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
 </div>
 
 <script>
-    // Функция фильтрации по категории
-    function filterByCategory(categoryId) {
-        const url = new URL(window.location.href);
-        if (categoryId > 0) {
-            url.searchParams.set('category_id', categoryId);
-        } else {
-            url.searchParams.delete('category_id');
-        }
-        window.location.href = url.toString();
-    }
-    
-    // Применение фильтров
-    function applyFilters() {
-        const search = document.getElementById('searchInput').value;
-        const status = document.getElementById('statusFilter').value;
-        const url = new URL(window.location.href);
-        if (search) url.searchParams.set('search', search);
-        else url.searchParams.delete('search');
-        if (status) url.searchParams.set('status', status);
-        else url.searchParams.delete('status');
-        window.location.href = url.toString();
-    }
-    
-    // Сброс фильтров
-    function resetFilters() {
-        window.location.href = window.location.pathname;
-    }
-    
-    // Просмотр запчасти
-    function viewPart(partId) {
-        window.open('../part.php?id=' + partId, '_blank');
-    }
-    
-    // Удаление запчасти
-    function deletePart(btn) {
-        const partId = btn.getAttribute('data-id');
-        const partName = btn.getAttribute('data-name');
-        if (confirm('Удалить запчасть "' + partName + '"?')) {
-            window.location.href = 'delete.php?id=' + partId;
-        }
-    }
-    
-    // Подсветка активной категории и установка обработчиков
-    document.addEventListener('DOMContentLoaded', function() {
-        const currentCatId = '<?= $category_filter ?>';
-        document.querySelectorAll('.category-item').forEach(item => {
-            const catId = item.getAttribute('data-cat-id');
-            if (catId == currentCatId) {
-                item.classList.add('active');
-            }
-            // Добавляем обработчик, если его нет
-            if (!item.hasAttribute('data-listener')) {
-                item.setAttribute('data-listener', 'true');
-                item.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    filterByCategory(parseInt(this.getAttribute('data-cat-id')));
-                });
-            }
-        });
-    });
-    
-    // Мобильное меню
-    function toggleSidebar() {
-        document.getElementById('sidebar').classList.toggle('open');
-    }
-    
-    // Закрыть меню при клике вне его на мобильных
-    document.addEventListener('click', function(event) {
-        const sidebar = document.getElementById('sidebar');
-        const menuBtn = document.querySelector('.menu-toggle');
-        if (window.innerWidth <= 768 && sidebar.classList.contains('open') && 
-            !sidebar.contains(event.target) && event.target !== menuBtn) {
-            sidebar.classList.remove('open');
+function filterByCategory(catId) {
+    let url = new URL(window.location.href);
+    if (catId > 0) url.searchParams.set('category_id', catId);
+    else url.searchParams.delete('category_id');
+    window.location.href = url.toString();
+}
+function applyFilters() {
+    let url = new URL(window.location.href);
+    let s = document.getElementById('searchInput').value;
+    let st = document.getElementById('statusFilter').value;
+    if (s) url.searchParams.set('search', s);
+    else url.searchParams.delete('search');
+    if (st) url.searchParams.set('status', st);
+    else url.searchParams.delete('status');
+    window.location.href = url.toString();
+}
+function resetFilters() { window.location.href = window.location.pathname; }
+function viewPart(id) { window.open('../part.php?id=' + id, '_blank'); }
+function deletePart(btn) {
+    window.location.href = 'delete.php?id=' + btn.dataset.id;
+}
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+
+// Сохранение состояния раскрытых категорий
+function saveOpenCategories() {
+    const openCategories = [];
+    document.querySelectorAll('.subcategories').forEach(sub => {
+        if (sub.style.display === 'block') {
+            const parentId = sub.getAttribute('data-parent');
+            if (parentId) openCategories.push(parentId);
         }
     });
+    localStorage.setItem('openCategories', JSON.stringify(openCategories));
+}
+
+function restoreOpenCategories() {
+    const saved = localStorage.getItem('openCategories');
+    if (!saved) return;
+    const openCategories = JSON.parse(saved);
+    openCategories.forEach(parentId => {
+        const sub = document.querySelector(`.subcategories[data-parent="${parentId}"]`);
+        if (sub) {
+            sub.style.display = 'block';
+            const toggle = sub.parentElement?.querySelector('.toggle-icon');
+            if (toggle && toggle.textContent === '►') toggle.textContent = '▼';
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    let currentCat = '<?= $category_filter ?>';
+    document.querySelectorAll('.category-item').forEach(item => {
+        let catId = item.dataset.catId;
+        if (catId == currentCat && catId != 0) item.classList.add('active');
+        
+        let toggle = item.querySelector('.toggle-icon');
+        let link = item.querySelector('.category-link');
+        
+        if (toggle && !toggle.classList.contains('empty')) {
+            toggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                let sub = item.querySelector('.subcategories');
+                if (sub) {
+                    if (sub.style.display === 'none') {
+                        sub.style.display = 'block';
+                        toggle.textContent = '▼';
+                    } else {
+                        sub.style.display = 'none';
+                        toggle.textContent = '►';
+                    }
+                    saveOpenCategories();
+                }
+            });
+        }
+        if (link) {
+            link.addEventListener('click', function(e) {
+                e.stopPropagation();
+                filterByCategory(catId);
+            });
+        }
+    });
+    
+    restoreOpenCategories();
+});
+
+document.addEventListener('click', function(e) {
+    let sidebar = document.getElementById('sidebar');
+    let btn = document.querySelector('.menu-toggle');
+    if (window.innerWidth <= 768 && sidebar.classList.contains('open') && 
+        !sidebar.contains(e.target) && e.target !== btn) {
+        sidebar.classList.remove('open');
+    }
+});
 </script>
+<?php include '../includes/footer.php'; ?>
 </body>
 </html>

@@ -146,5 +146,6 @@ $users = $pdo->query("SELECT * FROM users ORDER BY id")->fetchAll();
         <?php endforeach; ?>
     </div>
 </div>
+<?php include '../includes/footer.php'; ?>
 </body>
 </html>
