@@ -58,7 +58,27 @@ switch($part['status']) {
     case 'written_off': $status_text = 'Списана'; $status_class = 'status-written_off'; break;
     default: $status_text = $part['status']; $status_class = '';
 }
+
+// Получаем все категории запчасти
+$stmt = $pdo->prepare("
+    SELECT c.name, c.id 
+    FROM categories c
+    JOIN part_categories pc ON c.id = pc.category_id
+    WHERE pc.part_id = ?
+");
+$stmt->execute([$id]);
+$categories = $stmt->fetchAll();
+
+// Отображаем категории
+if (count($categories) > 0): ?>
+    <div class="prop-label">Категории</div>
+    <?php foreach ($categories as $cat): ?>
+        <div class="category-path">📁 <?= htmlspecialchars($cat['name']) ?></div>
+    <?php endforeach; ?>
+<?php endif;
 ?>
+
+
 
 <!DOCTYPE html>
 <html lang="ru">

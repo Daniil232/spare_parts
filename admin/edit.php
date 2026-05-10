@@ -13,18 +13,24 @@ if (!$part) {
     die("Запчасть не найдена");
 }
 
-// Получаем ВСЕ категории для выпадающего списка
+// Получаем все категории для выпадающего списка
 $allCategories = $pdo->query("SELECT id, parent_id, name FROM categories ORDER BY parent_id, name")->fetchAll();
 
-// Функция построения дерева
-function buildCategorySelect($categories, $selectedId = null, $parentId = null, $level = 0) {
+// Получаем ID выбранных категорий для этой запчасти
+$selectedCategories = [];
+$stmt = $pdo->prepare("SELECT category_id FROM part_categories WHERE part_id = ?");
+$stmt->execute([$id]);
+$selectedCategories = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+// Функция построения дерева для выпадающего списка (с поддержкой выбранных)
+function buildCategorySelectMultiple($categories, $selectedIds = [], $parentId = null, $level = 0) {
     $html = '';
     foreach ($categories as $cat) {
         if ($cat['parent_id'] == $parentId) {
             $indent = str_repeat('—', $level) . ($level > 0 ? ' ' : '');
-            $selected = ($selectedId == $cat['id']) ? 'selected="selected"' : '';
+            $selected = (in_array($cat['id'], $selectedIds)) ? 'selected' : '';
             $html .= '<option value="' . $cat['id'] . '" ' . $selected . '>' . $indent . htmlspecialchars($cat['name']) . '</option>';
-            $html .= buildCategorySelect($categories, $selectedId, $cat['id'], $level + 1);
+            $html .= buildCategorySelectMultiple($categories, $selectedIds, $cat['id'], $level + 1);
         }
     }
     return $html;
@@ -80,23 +86,20 @@ if (isset($_POST['upload_photos']) && isset($_FILES['photos'])) {
 if (isset($_GET['delete_photo'])) {
     $photoId = (int)$_GET['delete_photo'];
     
-    // Получаем путь к файлу
     $stmt = $pdo->prepare("SELECT file_path FROM photos WHERE id = ? AND part_id = ?");
     $stmt->execute([$photoId, $id]);
     $photo = $stmt->fetch();
     
     if ($photo) {
-        // 1. Удаляем файл с сервера
         $filePath = '../assets/uploads/parts/' . $photo['file_path'];
         if (file_exists($filePath)) {
             unlink($filePath);
         }
         
-        // 2. Удаляем запись из базы данных
         $stmt = $pdo->prepare("DELETE FROM photos WHERE id = ?");
         $stmt->execute([$photoId]);
         
-        // 3. Обновляем порядок сортировки оставшихся фотографий
+        // Обновляем порядок сортировки
         $stmt = $pdo->prepare("SELECT id FROM photos WHERE part_id = ? ORDER BY sort_order");
         $stmt->execute([$id]);
         $remainingPhotos = $stmt->fetchAll();
@@ -108,36 +111,55 @@ if (isset($_GET['delete_photo'])) {
         
         $success = "Фотография удалена";
         
-        // 4. Обновляем список фотографий для отображения
         $stmt = $pdo->prepare("SELECT * FROM photos WHERE part_id = ? ORDER BY sort_order");
         $stmt->execute([$id]);
         $photos = $stmt->fetchAll();
     }
 }
 
-// Обновление информации о запчасти
+// Обновление информации о запчасти и категориях
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
     $name = trim($_POST['name'] ?? '');
     $catalog_number = trim($_POST['catalog_number'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $status = $_POST['status'] ?? 'in_stock';
     $location = trim($_POST['location'] ?? '');
-    $category_id = $_POST['category_id'] ?? null;
     
     if (empty($name)) {
         $error = 'Наименование обязательно';
     } else {
+        // Обновляем основную информацию
         $stmt = $pdo->prepare("
             UPDATE parts 
-            SET name = ?, catalog_number = ?, description = ?, status = ?, location = ?, category_id = ?, updated_at = NOW()
+            SET name = ?, catalog_number = ?, description = ?, status = ?, location = ?, updated_at = NOW()
             WHERE id = ?
         ");
-        $stmt->execute([$name, $catalog_number, $description, $status, $location, $category_id ?: null, $id]);
+        $stmt->execute([$name, $catalog_number, $description, $status, $location, $id]);
+        
+        // Обновляем категории
+        if (isset($_POST['categories'])) {
+            // Удаляем старые связи
+            $stmt = $pdo->prepare("DELETE FROM part_categories WHERE part_id = ?");
+            $stmt->execute([$id]);
+            
+            // Добавляем новые
+            foreach ($_POST['categories'] as $catId) {
+                $stmt = $pdo->prepare("INSERT INTO part_categories (part_id, category_id) VALUES (?, ?)");
+                $stmt->execute([$id, $catId]);
+            }
+        }
+        
         $success = "Изменения сохранены!";
         
+        // Обновляем данные запчасти
         $stmt = $pdo->prepare("SELECT * FROM parts WHERE id = ?");
         $stmt->execute([$id]);
         $part = $stmt->fetch();
+        
+        // Обновляем выбранные категории
+        $stmt = $pdo->prepare("SELECT category_id FROM part_categories WHERE part_id = ?");
+        $stmt->execute([$id]);
+        $selectedCategories = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 }
 ?>
@@ -172,6 +194,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
         .photo-actions a{margin:0 3px;text-decoration:none;font-size:14px}
         .current-photos{margin-top:20px}
         .delete-photo{color:#dc3545}
+        select[multiple] {
+            min-height: 200px;
+        }
     </style>
 </head>
 <body>
@@ -219,12 +244,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
                     <input type="text" name="location" class="form-control" value="<?= htmlspecialchars($part['location'] ?? '') ?>">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label>Категория</label>
-                    <select name="category_id" class="form-select">
+                    <label>Категории (можно выбрать несколько)</label>
+                    <select name="categories[]" class="form-select" multiple size="8">
                         <option value="">— Без категории —</option>
-                        <?= buildCategorySelect($allCategories, $part['category_id']) ?>
+                        <?= buildCategorySelectMultiple($allCategories, $selectedCategories) ?>
                     </select>
-                    <div class="form-text">Выберите категорию из иерархического списка</div>
+                    <div class="form-text">Зажмите Ctrl (Cmd) для выбора нескольких категорий</div>
                 </div>
             </div>
             

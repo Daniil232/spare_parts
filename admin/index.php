@@ -24,13 +24,8 @@ if ($category_filter > 0) {
     $category_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
-// Базовый запрос
-$sql = "
-    SELECT p.*, c.name as category_name 
-    FROM parts p
-    LEFT JOIN categories c ON p.category_id = c.id
-    WHERE 1=1
-";
+// Базовый запрос (без LEFT JOIN категорий)
+$sql = "SELECT p.* FROM parts p WHERE 1=1";
 $params = [];
 
 if ($search) {
@@ -46,7 +41,7 @@ if ($status_filter) {
 
 if (!empty($category_ids)) {
     $placeholders = implode(',', array_fill(0, count($category_ids), '?'));
-    $sql .= " AND p.category_id IN ($placeholders)";
+    $sql .= " AND EXISTS (SELECT 1 FROM part_categories pc WHERE pc.part_id = p.id AND pc.category_id IN ($placeholders))";
     $params = array_merge($params, $category_ids);
 }
 
@@ -55,6 +50,19 @@ $sql .= " ORDER BY p.id DESC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $parts = $stmt->fetchAll();
+
+// Для каждой запчасти получаем её категории
+$partCategories = [];
+foreach ($parts as $part) {
+    $stmt = $pdo->prepare("
+        SELECT c.name FROM categories c 
+        JOIN part_categories pc ON c.id = pc.category_id 
+        WHERE pc.part_id = ?
+    ");
+    $stmt->execute([$part['id']]);
+    $cats = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $partCategories[$part['id']] = implode(', ', $cats);
+}
 
 // Получаем все категории для дерева
 $categories = $pdo->query("SELECT id, parent_id, name FROM categories ORDER BY name")->fetchAll();
@@ -108,10 +116,10 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
     <title>Админ-панель</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        /* Ваши стили остаются без изменений */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
         
-        /* Шапка */
         .top-header {
             background: #1a1a2e;
             color: white;
@@ -147,10 +155,8 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             cursor: pointer;
         }
         
-        /* Основной макет */
         .main-layout { display: flex; min-height: calc(100vh - 56px); }
         
-        /* Левое меню */
         .sidebar {
             width: 280px;
             background: white;
@@ -171,7 +177,6 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             margin-bottom: 8px;
         }
         
-        /* Категории */
         .category-item { list-style: none; }
         .category-row {
             display: flex;
@@ -206,7 +211,6 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
         }
         .subcategories { margin-left: 14px; }
         
-        /* Правая часть */
         .content { flex: 1; padding: 20px; overflow-x: auto; }
         .btn-add {
             background: #2c3e50;
@@ -219,7 +223,6 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
         }
         .btn-add:hover { background: #1a252f; color: white; }
         
-        /* Таблица */
         .table-card {
             background: white;
             border-radius: 20px;
@@ -247,7 +250,6 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
         
         .action-link { margin: 0 4px; text-decoration: none; font-size: 16px; }
         
-        /* Фильтры */
         .filter-bar {
             background: white;
             border-radius: 20px;
@@ -273,6 +275,12 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
         }
         .filter-btn { background: #2c3e50; color: white; }
         .reset-btn { background: #6c757d; color: white; }
+        
+        .category-list {
+            font-size: 12px;
+            color: #6c757d;
+            max-width: 200px;
+        }
         
         @media (max-width: 768px) {
             .sidebar {
@@ -335,7 +343,7 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
         <div class="table-card">
             <table>
                 <thead>
-                    <tr><th>ID</th><th>Наименование</th><th>Кат.номер</th><th>Статус</th><th>QR</th><th>Действия</th></tr>
+                    <tr><th>ID</th><th>Наименование</th><th>Категории</th><th>Кат.номер</th><th>Статус</th><th>QR</th><th>Действия</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($parts as $p): 
@@ -349,7 +357,8 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
                     ?>
                         <tr onclick="viewPart(<?= $p['id'] ?>)">
                             <td><?= $p['id'] ?></td>
-                            <td><strong><?= htmlspecialchars($p['name']) ?></strong><br><small><?= htmlspecialchars($p['category_name'] ?? '—') ?></small></td>
+                            <td><strong><?= htmlspecialchars($p['name']) ?></strong></td>
+                            <td class="category-list"><?= htmlspecialchars($partCategories[$p['id']] ?? '—') ?></td>
                             <td><?= htmlspecialchars($p['catalog_number'] ?? '—') ?></td>
                             <td><span class="status-badge <?= $sc ?>"><?= $st ?></span></td>
                             <td><a href="../generate_qr.php?id=<?= $p['id'] ?>" class="action-link" onclick="event.stopPropagation()">📷</a></td>
@@ -391,7 +400,6 @@ function deletePart(btn) {
 }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
 
-// Сохранение состояния раскрытых категорий
 function saveOpenCategories() {
     const openCategories = [];
     document.querySelectorAll('.subcategories').forEach(sub => {

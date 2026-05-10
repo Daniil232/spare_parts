@@ -5,14 +5,15 @@ requireLogin();
 
 $allCategories = $pdo->query("SELECT id, parent_id, name FROM categories ORDER BY parent_id, name")->fetchAll();
 
-function buildCategorySelect($categories, $selectedId = null, $parentId = null, $level = 0) {
+// Функция построения дерева для выпадающего списка
+function buildCategorySelectMultiple($categories, $selectedIds = [], $parentId = null, $level = 0) {
     $html = '';
     foreach ($categories as $cat) {
         if ($cat['parent_id'] == $parentId) {
             $indent = str_repeat('—', $level) . ($level > 0 ? ' ' : '');
-            $selected = ($selectedId == $cat['id']) ? 'selected="selected"' : '';
+            $selected = (in_array($cat['id'], $selectedIds)) ? 'selected' : '';
             $html .= '<option value="' . $cat['id'] . '" ' . $selected . '>' . $indent . htmlspecialchars($cat['name']) . '</option>';
-            $html .= buildCategorySelect($categories, $selectedId, $cat['id'], $level + 1);
+            $html .= buildCategorySelectMultiple($categories, $selectedIds, $cat['id'], $level + 1);
         }
     }
     return $html;
@@ -27,23 +28,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = trim($_POST['description'] ?? '');
     $status = $_POST['status'] ?? 'in_stock';
     $location = trim($_POST['location'] ?? '');
-    $category_id = $_POST['category_id'] ?? null;
     
     if (empty($name)) {
         $error = 'Наименование обязательно для заполнения';
     } else {
         $stmt = $pdo->prepare("
-            INSERT INTO parts (name, catalog_number, description, status, location, category_id, created_at, updated_at, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)
+            INSERT INTO parts (name, catalog_number, description, status, location, created_at, updated_at, created_by)
+            VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?)
         ");
-        $stmt->execute([$name, $catalog_number, $description, $status, $location, $category_id ?: null, $_SESSION['user_id']]);
+        $stmt->execute([$name, $catalog_number, $description, $status, $location, $_SESSION['user_id']]);
         $partId = $pdo->lastInsertId();
         
+        // Добавляем начальную операцию
         $stmt = $pdo->prepare("
             INSERT INTO operations (part_id, operation_type, description, date, created_at)
             VALUES (?, 'arrival', ?, NOW(), NOW())
         ");
         $stmt->execute([$partId, "Создание цифрового паспорта: " . $name]);
+        
+        // Сохраняем выбранные категории
+        if (isset($_POST['categories']) && !empty($_POST['categories'])) {
+            foreach ($_POST['categories'] as $catId) {
+                $stmt = $pdo->prepare("INSERT INTO part_categories (part_id, category_id) VALUES (?, ?)");
+                $stmt->execute([$partId, $catId]);
+            }
+        }
         
         // Загрузка фото
         if (isset($_FILES['photos']) && !empty($_FILES['photos']['name'][0])) {
@@ -92,6 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .alert{border-radius:16px;padding:12px16px;margin-bottom:20px}
         .row{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
         .col-md-6{flex:1;min-width:200px}
+        select[multiple] {
+            min-height: 200px;
+        }
     </style>
 </head>
 <body>
@@ -138,12 +150,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="text" name="location" class="form-control" placeholder="Склад А-1, Стеллаж 3">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label>Категория</label>
-                    <select name="category_id" class="form-select">
+                    <label>Категории (можно выбрать несколько)</label>
+                    <select name="categories[]" class="form-select" multiple size="8">
                         <option value="">— Без категории —</option>
-                        <?= buildCategorySelect($allCategories) ?>
+                        <?= buildCategorySelectMultiple($allCategories) ?>
                     </select>
-                    <div class="form-text">Выберите категорию из иерархического списка</div>
+                    <div class="form-text">Зажмите Ctrl (Cmd) для выбора нескольких категорий</div>
                 </div>
             </div>
             
