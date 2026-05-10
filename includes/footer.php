@@ -3,9 +3,9 @@
     <div class="footer-content">
         <div class="footer-section">
             <h4>📞 Контакты</h4>
-            <p><strong>Директор:</strong> Саранов Олег Анатольевич</p>
+            <p><strong>Директор:</strong> Баранов Олег Анатольевич</p>
             <p><strong>Телефон:</strong> +7 (921) 466-56-74</p>
-            <p><strong>Email:</strong> info@spareparts.ru</p>
+            <p><strong>Email:</strong> baranov2394@gmail.com</p>
         </div>
         <div class="footer-section">
             <h4>📍 Адрес</h4>
@@ -31,7 +31,7 @@
         background: #1a1a2e;
         color: #e0e0e0;
         padding: 30px 40px 20px;
-        margin-top: 40px;
+        /*margin-top: 40px;*/
         border-top: 1px solid #2c3e50;
         width: 100%;
         box-sizing: border-box;

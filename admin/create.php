@@ -80,11 +80,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
-        body{background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif;padding:30px}
+        body{background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif}
         .container{max-width:700px;margin:0 auto}
-        .card{background:white;border-radius:24px;padding:32px}
+        .card{background:white;border-radius:24px;padding:32px; margin-bottom:24px}
         h1{font-size:24px;margin-bottom:8px}
-        .back-link{margin-bottom:20px;display:inline-block;color:#6c757d;text-decoration:none}
+        .back-link{margin-bottom:20px;display:inline-block;color:#6c757d;text-decoration:none;margin-top: 24px;}
         .btn-save{background:#2c3e50;color:white;border:none;border-radius:40px;padding:12px30px;cursor:pointer; font-size: 15px;padding: 8px 20px;}
         .form-control,.form-select{border-radius:12px;padding:10px14px;border:1px solid #ddd;width:100%}
         label{font-weight:500;margin-bottom:6px;display:block}

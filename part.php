@@ -1,12 +1,31 @@
 <?php
 require_once 'includes/config.php';
 
+// Функция для получения полного пути категории
+function getCategoryFullPath($pdo, $categoryId) {
+    if (!$categoryId) return '';
+    
+    $path = [];
+    $currentId = $categoryId;
+    
+    while ($currentId) {
+        $stmt = $pdo->prepare("SELECT id, name, parent_id FROM categories WHERE id = ?");
+        $stmt->execute([$currentId]);
+        $cat = $stmt->fetch();
+        if (!$cat) break;
+        
+        $path[] = $cat['name'];
+        $currentId = $cat['parent_id'];
+    }
+    
+    return implode(' → ', array_reverse($path));
+}
+
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 $stmt = $pdo->prepare("
-    SELECT p.*, c.name as category_name, u.username as creator
+    SELECT p.*, u.username as creator
     FROM parts p
-    LEFT JOIN categories c ON p.category_id = c.id
     LEFT JOIN users u ON p.created_by = u.id
     WHERE p.id = ?
 ");
@@ -27,6 +46,10 @@ $stmt = $pdo->prepare("SELECT * FROM photos WHERE part_id = ? ORDER BY sort_orde
 $stmt->execute([$id]);
 $photos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Получаем полный путь категории
+$categoryPath = getCategoryFullPath($pdo, $part['category_id']);
+
+// Преобразуем статус
 switch($part['status']) {
     case 'in_stock': $status_text = 'В наличии'; $status_class = 'status-in_stock'; break;
     case 'under_repair': $status_text = 'В ремонте'; $status_class = 'status-under_repair'; break;
@@ -51,22 +74,15 @@ switch($part['status']) {
         .card{background:white;border-radius:24px;padding:20px;margin-bottom:16px}
         .part-id{font-size:12px;color:#6c757d;margin-bottom:8px}
         .part-name{font-size:24px;font-weight:700;margin-bottom:12px}
-        .status-badge { 
-            display: inline-block; 
-            padding: 8px 20px;           /* было 6px 16px — увеличили */
-            border-radius: 30px; 
-            font-size: 15px;             /* было 14px — чуть увеличили */
-            font-weight: 600; 
-            margin-bottom: 16px;
-        }
-        .status-in_stock{background:#e8f5e9;color:#2e7d32}
-        .status-under_repair{background:#fff3e0;color:#e65100}
-        .status-installed{background:#e3f2fd;color:#1565c0}
-        .status-sold{background:#eceff1;color:#546e7a}
-        .status-written_off{background:#ffebee;color:#c62828}
+        .status-badge{display:inline-block;padding:10px 24px;border-radius:40px;font-size:16px;font-weight:700;margin-bottom:20px}
+        .status-in_stock { background: #e8f5e9; color: #2e7d32; }
+        .status-under_repair { background: #fff3e0; color: #e65100; }
+        .status-installed { background: #e3f2fd; color: #1565c0; }
+        .status-sold { background: #eceff1; color: #546e7a; }
+        .status-written_off { background: #ffebee; color: #c62828; }
         .prop-label{font-size:12px;font-weight:600;color:#6c757d;margin-top:12px;margin-bottom:4px}
         .prop-value{font-size:15px;font-weight:500}
-        .category-path{background:#f8f9fc;padding:8px12px;border-radius:16px;font-size:13px;color:#2c3e50;margin:12px0}
+        .category-path{background:#f8f9fc;padding:8px 12px;border-radius:16px;font-size:13px;color:#2c3e50;margin:12px 0}
         .history-item{border-left:3px solid #2c3e50;padding-left:14px;margin-bottom:20px}
         .history-date{font-size:13px;font-weight:700;color:#2c3e50}
         .history-title{font-size:15px;font-weight:600;margin:4px0}
@@ -79,23 +95,22 @@ switch($part['status']) {
         .photo-dots{text-align:center;margin-top:10px}
         .photo-dots span{display:inline-block;width:8px;height:8px;background:#ccc;border-radius:50%;margin:0 4px;cursor:pointer}
         .photo-dots span.active{background:#2c3e50;width:10px;height:10px}
-        
-        /* Модальное окно для увеличения фото */
         .modal-photo{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:1000;align-items:center;justify-content:center;cursor:pointer}
         .modal-photo img{max-width:90%;max-height:90%;object-fit:contain}
-        .modal-photo.close-btn{position:absolute;top:20px;right:35px;font-size:40px;color:white;cursor:pointer}
-        .modal-photo.close-btn:hover{color:#ccc}
+        .modal-photo .close-btn{position:absolute;top:20px;right:35px;font-size:40px;color:white;cursor:pointer}
+        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500;margin-top:24px;padding: 0 12px;}
     </style>
 </head>
 <body>
+
+<!-- Кнопка назад (только для авторизованных) -->
+<?php if (isset($_SESSION['user_id'])): ?>
+    <div style="max-width:550px;margin:0 auto 15px auto;">
+        <a href="admin/index.php" class="back-button">← Назад в админ-панель</a>
+    </div>
+<?php endif; ?>
+
 <div class="container">
-    <?php if (isset($_SESSION['user_id'])): ?>
-        <div style="margin-bottom: 15px;">
-            <a href="admin/index.php" class="back-button" style="display: inline-flex; align-items: center; gap: 8px; background: #f0f2f5; padding: 8px 16px; border-radius: 40px; text-decoration: none; color: #2c3e50; font-size: 14px; font-weight: 500;">
-                ← Назад в админ-панель
-            </a>
-        </div>
-    <?php endif; ?>
     <div class="card">
         <div class="part-id">ПАСПОРТ ЗАПЧАСТИ #<?= $part['id'] ?></div>
         <div class="part-name"><?= htmlspecialchars($part['name']) ?></div>
@@ -104,9 +119,9 @@ switch($part['status']) {
         <div class="prop-label">Каталожный номер</div>
         <div class="prop-value"><?= htmlspecialchars($part['catalog_number'] ?? '—') ?></div>
         
-        <?php if($part['category_name']): ?>
+        <?php if ($categoryPath): ?>
             <div class="prop-label">Категория</div>
-            <div class="category-path">📁 <?= htmlspecialchars($part['category_name']) ?></div>
+            <div class="category-path">📁 <?= htmlspecialchars($categoryPath) ?></div>
         <?php endif; ?>
         
         <div class="prop-label">Местоположение</div>
@@ -136,7 +151,6 @@ switch($part['status']) {
                      id="photo_<?= $index ?>">
             <?php endforeach; ?>
         </div>
-        
         <?php if(count($photos) > 1): ?>
             <div class="photo-nav">
                 <button id="prevPhoto">◀</button>
@@ -182,18 +196,18 @@ switch($part['status']) {
         <div class="prop-value" style="font-size:20px;font-weight:700">#<?= $part['id'] ?></div>
     </div>
 </div>
-<?php include 'includes/footer.php'; ?>
-<!-- Модальное окно для увеличения фото -->
+
 <div id="photoModal" class="modal-photo" onclick="closeModal()">
     <span class="close-btn" onclick="closeModal()">✕</span>
     <img id="modalImage" src="">
 </div>
 
+<?php include 'includes/footer.php'; ?>
+
 <script>
 <?php if(count($photos) > 1): ?>
     let currentIndex = 0;
     const totalPhotos = <?= count($photos) ?>;
-    
     function showPhoto(index) {
         for(let i = 0; i < totalPhotos; i++) {
             const img = document.getElementById('photo_' + i);
@@ -207,56 +221,30 @@ switch($part['status']) {
         const prevBtn = document.getElementById('prevPhoto');
         if(prevBtn) prevBtn.style.visibility = index === 0 ? 'hidden' : 'visible';
     }
-    
     document.getElementById('prevPhoto')?.addEventListener('click', function() {
-        if(currentIndex > 0) {
-            currentIndex--;
-            showPhoto(currentIndex);
-        }
+        if(currentIndex > 0) { currentIndex--; showPhoto(currentIndex); }
     });
-    
     document.getElementById('nextPhoto')?.addEventListener('click', function() {
-        if(currentIndex < totalPhotos - 1) {
-            currentIndex++;
-            showPhoto(currentIndex);
-        }
+        if(currentIndex < totalPhotos - 1) { currentIndex++; showPhoto(currentIndex); }
     });
-    
     document.querySelectorAll('.photo-dots span').forEach(dot => {
-        dot.addEventListener('click', function() {
-            currentIndex = parseInt(this.getAttribute('data-index'));
-            showPhoto(currentIndex);
-        });
+        dot.addEventListener('click', function() { currentIndex = parseInt(this.dataset.index); showPhoto(currentIndex); });
     });
-    
-    if(totalPhotos > 1) {
-        const prevBtn = document.getElementById('prevPhoto');
-        if(prevBtn) prevBtn.style.visibility = 'hidden';
-    }
+    showPhoto(0);
 <?php endif; ?>
 
-// Увеличение фото при клике
 document.querySelectorAll('.photo-img').forEach(img => {
     img.addEventListener('click', function(e) {
         e.stopPropagation();
-        const modal = document.getElementById('photoModal');
-        const modalImg = document.getElementById('modalImage');
-        modalImg.src = this.getAttribute('data-full') || this.src;
-        modal.style.display = 'flex';
+        document.getElementById('modalImage').src = this.dataset.full || this.src;
+        document.getElementById('photoModal').style.display = 'flex';
     });
 });
 
 function closeModal() {
     document.getElementById('photoModal').style.display = 'none';
 }
-
-// Закрытие по Escape
-document.addEventListener('keydown', function(e) {
-    if(e.key === 'Escape') {
-        closeModal();
-    }
-});
+document.addEventListener('keydown', function(e) { if(e.key === 'Escape') closeModal(); });
 </script>
-
 </body>
 </html>

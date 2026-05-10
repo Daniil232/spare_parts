@@ -91,7 +91,7 @@ function buildCategoryTreeSelect($categories, $selectedId = null, $parentId = nu
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; }
+        body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif}
         .container { max-width: 900px; margin: 0 auto; }
         
         .card { background: white; border-radius: 24px; padding: 24px; margin-bottom: 24px; }
