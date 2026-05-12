@@ -1,7 +1,6 @@
 <?php
 require_once 'includes/config.php';
 
-// Функция для получения полного пути категории
 function getCategoryFullPath($pdo, $categoryId) {
     if (!$categoryId) return '';
     
@@ -46,8 +45,21 @@ $stmt = $pdo->prepare("SELECT * FROM photos WHERE part_id = ? ORDER BY sort_orde
 $stmt->execute([$id]);
 $photos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Получаем полный путь категории
-$categoryPath = getCategoryFullPath($pdo, $part['category_id']);
+// Получаем ВСЕ категории запчасти (может быть несколько)
+$stmt = $pdo->prepare("
+    SELECT c.name, c.id, c.parent_id
+    FROM categories c
+    JOIN part_categories pc ON c.id = pc.category_id
+    WHERE pc.part_id = ?
+");
+$stmt->execute([$id]);
+$categoriesList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Получаем полный путь для каждой категории
+$categoryPaths = [];
+foreach ($categoriesList as $cat) {
+    $categoryPaths[] = getCategoryFullPath($pdo, $cat['id']);
+}
 
 // Преобразуем статус
 switch($part['status']) {
@@ -58,27 +70,7 @@ switch($part['status']) {
     case 'written_off': $status_text = 'Списана'; $status_class = 'status-written_off'; break;
     default: $status_text = $part['status']; $status_class = '';
 }
-
-// Получаем все категории запчасти
-$stmt = $pdo->prepare("
-    SELECT c.name, c.id 
-    FROM categories c
-    JOIN part_categories pc ON c.id = pc.category_id
-    WHERE pc.part_id = ?
-");
-$stmt->execute([$id]);
-$categories = $stmt->fetchAll();
-
-// Отображаем категории
-if (count($categories) > 0): ?>
-    <div class="prop-label">Категории</div>
-    <?php foreach ($categories as $cat): ?>
-        <div class="category-path">📁 <?= htmlspecialchars($cat['name']) ?></div>
-    <?php endforeach; ?>
-<?php endif;
 ?>
-
-
 
 <!DOCTYPE html>
 <html lang="ru">
@@ -91,7 +83,7 @@ if (count($categories) > 0): ?>
         *{margin:0;padding:0;box-sizing:border-box}
         body{background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif}
         .container{max-width:550px;margin:0 auto}
-        .card{background:white;border-radius:24px;padding:20px;margin-bottom:16px}
+        .card{background:white;border-radius:24px;padding:20px;margin-bottom:16px; margin-top:16px}
         .part-id{font-size:12px;color:#6c757d;margin-bottom:8px}
         .part-name{font-size:24px;font-weight:700;margin-bottom:12px}
         .status-badge{display:inline-block;padding:10px 24px;border-radius:40px;font-size:16px;font-weight:700;margin-bottom:20px}
@@ -102,7 +94,7 @@ if (count($categories) > 0): ?>
         .status-written_off { background: #ffebee; color: #c62828; }
         .prop-label{font-size:12px;font-weight:600;color:#6c757d;margin-top:12px;margin-bottom:4px}
         .prop-value{font-size:15px;font-weight:500}
-        .category-path{background:#f8f9fc;padding:8px 12px;border-radius:16px;font-size:13px;color:#2c3e50;margin:12px 0}
+        .category-path{background:#f8f9fc;padding:8px 12px;border-radius:16px;font-size:13px;color:#2c3e50;margin:8px 0}
         .history-item{border-left:3px solid #2c3e50;padding-left:14px;margin-bottom:20px}
         .history-date{font-size:13px;font-weight:700;color:#2c3e50}
         .history-title{font-size:15px;font-weight:600;margin:4px0}
@@ -118,7 +110,7 @@ if (count($categories) > 0): ?>
         .modal-photo{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:1000;align-items:center;justify-content:center;cursor:pointer}
         .modal-photo img{max-width:90%;max-height:90%;object-fit:contain}
         .modal-photo .close-btn{position:absolute;top:20px;right:35px;font-size:40px;color:white;cursor:pointer}
-        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500;margin-top:24px;padding: 0 12px;}
+        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500}
     </style>
 </head>
 <body>
@@ -139,9 +131,12 @@ if (count($categories) > 0): ?>
         <div class="prop-label">Каталожный номер</div>
         <div class="prop-value"><?= htmlspecialchars($part['catalog_number'] ?? '—') ?></div>
         
-        <?php if ($categoryPath): ?>
-            <div class="prop-label">Категория</div>
-            <div class="category-path">📁 <?= htmlspecialchars($categoryPath) ?></div>
+        <!-- Категории с полным путём -->
+        <?php if (count($categoryPaths) > 0): ?>
+            <div class="prop-label">Категории</div>
+            <?php foreach ($categoryPaths as $path): ?>
+                <div class="category-path">📁 <?= htmlspecialchars($path) ?></div>
+            <?php endforeach; ?>
         <?php endif; ?>
         
         <div class="prop-label">Местоположение</div>
@@ -158,6 +153,7 @@ if (count($categories) > 0): ?>
         <div class="prop-value"><?= nl2br(htmlspecialchars($part['description'] ?? '—')) ?></div>
     </div>
     
+    <!-- Фотографии -->
     <?php if(count($photos) > 0): ?>
     <div class="card">
         <div class="prop-label" style="margin-bottom:12px">Фотографии</div>
@@ -185,6 +181,7 @@ if (count($categories) > 0): ?>
     </div>
     <?php endif; ?>
     
+    <!-- История операций -->
     <div class="card">
         <div class="prop-label" style="margin-bottom:12px">История операций</div>
         <?php if(count($operations) > 0): ?>
