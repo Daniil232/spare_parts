@@ -110,7 +110,7 @@ switch($part['status']) {
         .modal-photo{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:1000;align-items:center;justify-content:center;cursor:pointer}
         .modal-photo img{max-width:90%;max-height:90%;object-fit:contain}
         .modal-photo .close-btn{position:absolute;top:20px;right:35px;font-size:40px;color:white;cursor:pointer}
-        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500}
+        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500; margin-top:12px}
     </style>
 </head>
 <body>
