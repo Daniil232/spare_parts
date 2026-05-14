@@ -286,16 +286,40 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             .sidebar {
                 position: fixed;
                 left: 0;
-                top: 56px;
+                top: 56px;           /* ← ровно под шапкой */
+                bottom: 0;
                 z-index: 99;
                 transform: translateX(-100%);
-                width: 260px;
+                width: 280px;
+                background: white;
                 box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+                padding: 12px 0;
+                overflow-y: auto;
+                transition: transform 0.3s ease;
             }
-            .sidebar.open { transform: translateX(0); }
-            .menu-toggle { display: inline-block; }
-            .content { padding: 12px; }
-            .filter-bar input, .filter-bar select { width: 100%; }
+            .sidebar.open {
+                transform: translateX(0);
+                margin-top: 80px;
+            }
+            .menu-toggle {
+                display: inline-block;
+            }
+            .content {
+                padding: 12px;
+            }
+            .filter-bar input, .filter-bar select {
+                width: 100%;
+            }
+            .sidebar-title {
+                padding: 0 16px 12px;
+                margin-bottom: 8px;
+            }
+            .category-row {
+                padding: 8px 16px;
+            }
+            .category-link {
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -303,7 +327,7 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
 
 <div class="top-header">
     <div class="logo"><span>🔧</span> Цифровые паспорта</div>
-    <button class="menu-toggle" onclick="toggleSidebar()">📁 Категории</button>
+    <button class="menu-toggle" onclick="toggleSidebar()">📁 Каталог</button>
     <div class="nav-buttons">
         <a href="create.php">+ Новая запчасть</a>
         <?php if (isAdmin()): ?>
@@ -338,6 +362,9 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
             </select>
             <button class="filter-btn" onclick="applyFilters()">🔍 Фильтровать</button>
             <button class="reset-btn" onclick="resetFilters()">Сбросить</button>
+            <?php if ($category_filter > 0): ?>
+                <button class="filter-btn" onclick="filterByCategory(0)" style="background: #27ae60;">📋 Показать все</button>
+            <?php endif; ?>
         </div>
         
         <div class="table-card">
@@ -398,7 +425,19 @@ function viewPart(id) { window.open('../part.php?id=' + id, '_blank'); }
 function deletePart(btn) {
     window.location.href = 'delete.php?id=' + btn.dataset.id;
 }
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('open');
+    if (sidebar.classList.contains('open')) {
+        // Прокручиваем меню к первому элементу
+        setTimeout(() => {
+            const firstItem = sidebar.querySelector('.category-item');
+            if (firstItem) {
+                firstItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
+    }
+}
 
 function saveOpenCategories() {
     const openCategories = [];

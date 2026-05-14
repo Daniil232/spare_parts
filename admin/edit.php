@@ -197,6 +197,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_part'])) {
         select[multiple] {
             min-height: 200px;
         }
+         @media (max-width: 768px) {
+            .btn-save {
+                margin-bottom: 15px;
+            }
+        }
     </style>
 </head>
 <body>

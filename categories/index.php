@@ -25,11 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_category'])) {
 // Удаление категории
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
+    
+    // Проверяем наличие подкатегорий
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM categories WHERE parent_id = ?");
     $stmt->execute([$id]);
     $hasChildren = $stmt->fetchColumn() > 0;
     
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM parts WHERE category_id = ?");
+    // Проверяем наличие запчастей в этой категории (через part_categories)
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM part_categories WHERE category_id = ?");
     $stmt->execute([$id]);
     $hasParts = $stmt->fetchColumn() > 0;
     
@@ -57,7 +60,7 @@ function buildCategoryTreeDisplay($categories, $parentId = null, $level = 0) {
                     <span class="category-name">' . $indent . $icon . htmlspecialchars($cat['name']) . '</span>
                     <div class="category-actions">
                         <a href="edit.php?id=' . $cat['id'] . '" class="action-link" title="Редактировать">✏️</a>
-                        <a href="?delete=' . $cat['id'] . '" class="action-link delete-link" title="Удалить" onclick="return confirm(\'Удалить категорию? Запчасти останутся без категории.\')">🗑️</a>
+                        <button onclick="confirmDelete(' . $cat['id'] . ', \'' . addslashes($cat['name']) . '\')" class="action-link delete-link" style="background:none; border:none; cursor:pointer; font-size:18px;">🗑️</button>
                     </div>
                 </div>
             </div>';
@@ -96,7 +99,7 @@ function buildCategoryTreeSelect($categories, $selectedId = null, $parentId = nu
         
         .card { background: white; border-radius: 24px; padding: 24px; margin-bottom: 24px; }
         h1 { font-size: 24px; margin-bottom: 8px; }
-        .back-link { margin-bottom: 20px; display: inline-block; color: #6c757d; text-decoration: none; }
+        .back-link { margin-bottom: 20px; display: inline-block; color: #6c757d; text-decoration: none; margin-top: 16px; }
         .back-link:hover { text-decoration: underline; }
         
         /* Форма создания */
@@ -184,5 +187,84 @@ function buildCategoryTreeSelect($categories, $selectedId = null, $parentId = nu
     </div>
 </div>
 <?php include '../includes/footer.php'; ?>
+<!-- Модальное окно подтверждения удаления -->
+<div id="deleteModal" class="modal-delete" style="display: none;">
+    <div class="modal-card">
+        <div class="icon" style="font-size: 48px; margin-bottom: 12px;">🗑️</div>
+        <h3>Подтверждение удаления</h3>
+        <p>Вы действительно хотите удалить категорию?</p>
+        <div id="deleteCategoryName" class="category-name" style="font-weight: 700; color: #c62828; margin: 12px 0; padding: 10px; background: #ffebee; border-radius: 16px;"></div>
+        <p class="text-muted small">Запчасти в этой категории останутся, но категория у них будет сброшена.</p>
+        <div class="modal-buttons" style="display: flex; gap: 12px; margin-top: 24px;">
+            <a href="#" id="confirmDeleteBtn" class="btn-confirm" style="background: #dc3545; color: white; border: none; border-radius: 40px; padding: 10px 24px; cursor: pointer; flex: 1; text-align: center; text-decoration: none;">Да, удалить</a>
+            <button id="cancelDeleteBtn" class="btn-cancel" style="background: #6c757d; color: white; border: none; border-radius: 40px; padding: 10px 24px; cursor: pointer; flex: 1;">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal-delete {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .modal-delete .modal-card {
+        background: white;
+        border-radius: 28px;
+        max-width: 400px;
+        width: 100%;
+        padding: 28px 24px;
+        text-align: center;
+        animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    @media (max-width: 480px) {
+        .modal-delete .modal-card { padding: 20px 16px; }
+        .modal-delete h3 { font-size: 20px; }
+        .modal-buttons { flex-direction: column; }
+    }
+</style>
+
+<script>
+    let deleteId = null;
+    
+    function confirmDelete(id, name) {
+        deleteId = id;
+        document.getElementById('deleteCategoryName').textContent = name;
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+    
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+        deleteId = null;
+    }
+    
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        if (deleteId) {
+            window.location.href = '?delete=' + deleteId;
+        }
+    });
+    
+    document.getElementById('cancelDeleteBtn').addEventListener('click', function() {
+        closeDeleteModal();
+    });
+    
+    document.getElementById('deleteModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeDeleteModal();
+        }
+    });
+</script>
 </body>
 </html>

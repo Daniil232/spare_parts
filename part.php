@@ -79,11 +79,12 @@ switch($part['status']) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Цифровой паспорт: <?= htmlspecialchars($part['name']) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/styles.css">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif}
         .container{max-width:550px;margin:0 auto}
-        .card{background:white;border-radius:24px;padding:20px;margin-bottom:16px; margin-top:16px}
+        .card{background:white;border-radius:24px;padding:20px;margin-bottom:16px;margin-top:16px}
         .part-id{font-size:12px;color:#6c757d;margin-bottom:8px}
         .part-name{font-size:24px;font-weight:700;margin-bottom:12px}
         .status-badge{display:inline-block;padding:10px 24px;border-radius:40px;font-size:16px;font-weight:700;margin-bottom:20px}
@@ -107,10 +108,103 @@ switch($part['status']) {
         .photo-dots{text-align:center;margin-top:10px}
         .photo-dots span{display:inline-block;width:8px;height:8px;background:#ccc;border-radius:50%;margin:0 4px;cursor:pointer}
         .photo-dots span.active{background:#2c3e50;width:10px;height:10px}
-        .modal-photo{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:1000;align-items:center;justify-content:center;cursor:pointer}
-        .modal-photo img{max-width:90%;max-height:90%;object-fit:contain}
-        .modal-photo .close-btn{position:absolute;top:20px;right:35px;font-size:40px;color:white;cursor:pointer}
-        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500; margin-top:12px}
+        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500;margin-top:12px}
+
+        /* Модальное окно для увеличения фото с навигацией */
+        .modal-photo {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-photo img {
+            max-width: 85%;
+            max-height: 85%;
+            object-fit: contain;
+            cursor: default;
+        }
+        .modal-photo .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            font-size: 44px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            z-index: 1001;
+            font-family: Arial, sans-serif;
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+        .modal-photo .close-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+            transform: scale(1.05);
+        }
+        .modal-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            font-size: 48px;
+            font-weight: bold;
+            width: 80px;
+            height: 120px;
+            cursor: pointer;
+            z-index: 1001;
+            transition: 0.2s;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-nav:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: translateY(-50%) scale(1.05);
+        }
+        .modal-nav.prev {
+            left: 30px;
+        }
+        .modal-nav.next {
+            right: 30px;
+        }
+        @media (max-width: 768px) {
+            .modal-photo .close-btn {
+                top: 15px;
+                right: 15px;
+                font-size: 24px;
+                width: 50px;
+                height: 50px;
+            }
+            .modal-nav {
+                font-size: 36px;
+                width: 55px;
+                height: 80px;
+            }
+            .modal-nav.prev { left: 10px; }
+            .modal-nav.next { right: 10px; }
+        }
+        @media (max-width: 480px) {
+            .modal-nav {
+                font-size: 28px;
+                width: 45px;
+                height: 65px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -214,17 +308,22 @@ switch($part['status']) {
     </div>
 </div>
 
-<div id="photoModal" class="modal-photo" onclick="closeModal()">
+<!-- Модальное окно для увеличения фото с навигацией -->
+<div id="photoModal" class="modal-photo" style="display: none;">
     <span class="close-btn" onclick="closeModal()">✕</span>
+    <button class="modal-nav prev" id="modalPrev">◀</button>
     <img id="modalImage" src="">
+    <button class="modal-nav next" id="modalNext">▶</button>
 </div>
 
 <?php include 'includes/footer.php'; ?>
 
 <script>
 <?php if(count($photos) > 1): ?>
+    // Слайдер на публичной странице
     let currentIndex = 0;
     const totalPhotos = <?= count($photos) ?>;
+    
     function showPhoto(index) {
         for(let i = 0; i < totalPhotos; i++) {
             const img = document.getElementById('photo_' + i);
@@ -238,30 +337,105 @@ switch($part['status']) {
         const prevBtn = document.getElementById('prevPhoto');
         if(prevBtn) prevBtn.style.visibility = index === 0 ? 'hidden' : 'visible';
     }
+    
     document.getElementById('prevPhoto')?.addEventListener('click', function() {
-        if(currentIndex > 0) { currentIndex--; showPhoto(currentIndex); }
+        if(currentIndex > 0) {
+            currentIndex--;
+            showPhoto(currentIndex);
+        }
     });
+    
     document.getElementById('nextPhoto')?.addEventListener('click', function() {
-        if(currentIndex < totalPhotos - 1) { currentIndex++; showPhoto(currentIndex); }
+        if(currentIndex < totalPhotos - 1) {
+            currentIndex++;
+            showPhoto(currentIndex);
+        }
     });
+    
     document.querySelectorAll('.photo-dots span').forEach(dot => {
-        dot.addEventListener('click', function() { currentIndex = parseInt(this.dataset.index); showPhoto(currentIndex); });
+        dot.addEventListener('click', function() {
+            currentIndex = parseInt(this.dataset.index);
+            showPhoto(currentIndex);
+        });
     });
+    
     showPhoto(0);
 <?php endif; ?>
 
-document.querySelectorAll('.photo-img').forEach(img => {
-    img.addEventListener('click', function(e) {
-        e.stopPropagation();
-        document.getElementById('modalImage').src = this.dataset.full || this.src;
-        document.getElementById('photoModal').style.display = 'flex';
-    });
-});
+// Переменные для модального окна
+let modalCurrentIndex = 0;
+const modalTotalPhotos = <?= count($photos) ?>;
+let modalImages = [];
+
+// Собираем все фото в массив
+<?php foreach($photos as $index => $photo): ?>
+modalImages[<?= $index ?>] = "assets/uploads/parts/<?= htmlspecialchars($photo['file_path']) ?>";
+<?php endforeach; ?>
+
+function showModalPhoto(index) {
+    if (index < 0) index = 0;
+    if (index >= modalTotalPhotos) index = modalTotalPhotos - 1;
+    modalCurrentIndex = index;
+    const modalImg = document.getElementById('modalImage');
+    if (modalImg) modalImg.src = modalImages[modalCurrentIndex];
+    
+    // Показываем/скрываем кнопки навигации
+    const prevBtn = document.getElementById('modalPrev');
+    const nextBtn = document.getElementById('modalNext');
+    if (prevBtn) prevBtn.style.visibility = modalCurrentIndex === 0 ? 'hidden' : 'visible';
+    if (nextBtn) nextBtn.style.visibility = modalCurrentIndex === modalTotalPhotos - 1 ? 'hidden' : 'visible';
+}
+
+function openModal(index) {
+    const modal = document.getElementById('photoModal');
+    if (modal) {
+        showModalPhoto(index);
+        modal.style.display = 'flex';
+    }
+}
 
 function closeModal() {
     document.getElementById('photoModal').style.display = 'none';
 }
-document.addEventListener('keydown', function(e) { if(e.key === 'Escape') closeModal(); });
+
+// Обработчики для клика по фото
+document.querySelectorAll('.photo-img').forEach((img, idx) => {
+    img.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openModal(idx);
+    });
+});
+
+// Кнопки навигации в модальном окне
+document.getElementById('modalPrev')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (modalCurrentIndex > 0) {
+        showModalPhoto(modalCurrentIndex - 1);
+    }
+});
+
+document.getElementById('modalNext')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (modalCurrentIndex < modalTotalPhotos - 1) {
+        showModalPhoto(modalCurrentIndex + 1);
+    }
+});
+
+// Закрытие по Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'ArrowLeft' && document.getElementById('photoModal').style.display === 'flex') {
+        if (modalCurrentIndex > 0) showModalPhoto(modalCurrentIndex - 1);
+    }
+    if (e.key === 'ArrowRight' && document.getElementById('photoModal').style.display === 'flex') {
+        if (modalCurrentIndex < modalTotalPhotos - 1) showModalPhoto(modalCurrentIndex + 1);
+    }
+});
+
+// Закрытие при клике вне изображения
+document.getElementById('photoModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
 </script>
 </body>
 </html>
