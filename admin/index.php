@@ -7,6 +7,7 @@ requireLogin();
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $category_filter = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
+$id_filter = isset($_GET['id_filter']) ? (int)$_GET['id_filter'] : 0;  // ← ДОБАВИТЬ
 
 // Если выбрана категория, получаем все её подкатегории включительно
 $category_ids = [];
@@ -27,6 +28,11 @@ if ($category_filter > 0) {
 // Базовый запрос (без LEFT JOIN категорий)
 $sql = "SELECT p.* FROM parts p WHERE 1=1";
 $params = [];
+
+if ($id_filter > 0) {
+    $sql .= " AND p.id = ?";
+    $params[] = $id_filter;
+}
 
 if ($search) {
     $sql .= " AND (p.name LIKE ? OR p.catalog_number LIKE ?)";
@@ -354,6 +360,8 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
     <div class="content">
         <div class="filter-bar">
             <input type="text" id="searchInput" placeholder="🔍 Поиск по названию или артикулу" value="<?= htmlspecialchars($search) ?>">
+            <!-- НОВОЕ ПОЛЕ ДЛЯ ID -->
+            <input type="number" id="idFilter" placeholder="🆔 ID запчасти" value="<?= $id_filter > 0 ? $id_filter : '' ?>" style="min-width: 120px;">
             <select id="statusFilter">
                 <option value="">Все статусы</option>
                 <?php foreach ($statuses as $val => $text): ?>
@@ -414,10 +422,15 @@ function applyFilters() {
     let url = new URL(window.location.href);
     let s = document.getElementById('searchInput').value;
     let st = document.getElementById('statusFilter').value;
+    let id = document.getElementById('idFilter').value;  // ← ДОБАВИТЬ
+    
     if (s) url.searchParams.set('search', s);
     else url.searchParams.delete('search');
     if (st) url.searchParams.set('status', st);
     else url.searchParams.delete('status');
+    if (id && id > 0) url.searchParams.set('id_filter', id);  // ← ДОБАВИТЬ
+    else url.searchParams.delete('id_filter');
+    
     window.location.href = url.toString();
 }
 function resetFilters() { window.location.href = window.location.pathname; }

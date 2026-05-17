@@ -108,7 +108,7 @@ switch($part['status']) {
         .photo-dots{text-align:center;margin-top:10px}
         .photo-dots span{display:inline-block;width:8px;height:8px;background:#ccc;border-radius:50%;margin:0 4px;cursor:pointer}
         .photo-dots span.active{background:#2c3e50;width:10px;height:10px}
-        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500;margin-top:12px}
+        .back-button{padding-left: 15px;display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500;margin-top:12px}
 
         /* Модальное окно для увеличения фото с навигацией */
         .modal-photo {

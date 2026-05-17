@@ -154,7 +154,7 @@ function showAccessDenied($requiredRole) {
             </div>
             <div>
                 <a href="javascript:history.back()" class="btn-back">← Вернуться назад</a>
-                <a href="/spare_parts/admin/logout.php" class="btn-logout">🚪 Выйти</a>
+                <a href="/admin/logout.php" class="btn-logout">🚪 Выйти</a>
             </div>
         </div>
     </body>
