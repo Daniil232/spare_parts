@@ -434,7 +434,7 @@ function applyFilters() {
     window.location.href = url.toString();
 }
 function resetFilters() { window.location.href = window.location.pathname; }
-function viewPart(id) { window.open('../part.php?id=' + id, '_blank'); }
+function viewPart(id) { window.location.href = '../part.php?id=' + id; }
 function deletePart(btn) {
     window.location.href = 'delete.php?id=' + btn.dataset.id;
 }
