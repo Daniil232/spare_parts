@@ -37,7 +37,7 @@ if (!$part) {
     exit;
 }
 
-$stmt = $pdo->prepare("SELECT * FROM operations WHERE part_id = ? ORDER BY date DESC");
+$stmt = $pdo->prepare("SELECT * FROM operations WHERE part_id = ? ORDER BY date ASC, created_at ASC");
 $stmt->execute([$id]);
 $operations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -141,24 +141,111 @@ switch($part['status']) {
         .status-installed { background: #e3f2fd; color: #1565c0; }
         .status-sold { background: #eceff1; color: #546e7a; }
         .status-written_off { background: #ffebee; color: #c62828; }
-        .prop-label{font-size:12px;font-weight:600;color:#6c757d;margin-top:12px;margin-bottom:4px}
-        .prop-value{font-size:15px;font-weight:500}
-        .category-path{background:#f8f9fc;padding:8px 12px;border-radius:16px;font-size:13px;color:#2c3e50;margin:8px 0}
-        .history-item{border-left:3px solid #2c3e50;padding-left:14px;margin-bottom:20px}
-        .history-date{font-size:13px;font-weight:700;color:#2c3e50}
-        .history-title{font-size:15px;font-weight:600;margin:4px0}
-        .history-desc{font-size:14px;color:#4a5568}
-        hr{margin:16px0;border-color:#eef2f6}
-        .photo-slider{text-align:center}
-        .photo-slider img{width:100%;border-radius:16px;cursor:pointer;max-height:250px;object-fit:contain}
-        .photo-nav{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
-        .photo-nav button{background:#f0f2f5;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer}
-        .photo-dots{text-align:center;margin-top:10px}
-        .photo-dots span{display:inline-block;width:8px;height:8px;background:#ccc;border-radius:50%;margin:0 4px;cursor:pointer}
-        .photo-dots span.active{background:#2c3e50;width:10px;height:10px}
-        .back-button{display:inline-flex;align-items:center;gap:8px;background:#f0f2f5;padding:8px16px;border-radius:40px;text-decoration:none;color:#2c3e50;font-size:14px;font-weight:500;margin-top:12px}
-
-        /* Модальное окно для увеличения фото с навигацией */
+        
+        /* Название */
+        .part-name {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 16px;
+        }
+        
+        /* Строка свойства */
+        .prop-row {
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f2f5;
+        }
+        .prop-label {
+            width: 140px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #6c757d;
+        }
+        .prop-value {
+            flex: 1;
+            font-size: 14px;
+            color: #1a1a2e;
+            word-break: break-word;
+        }
+        
+        /* Категория (хлебные крошки) */
+        .category-path {
+            background: #f8f9fc;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            color: #2c3e50;
+            margin: 8px 0;
+        }
+        
+        /* История операций */
+        .history-item {
+            border-left: 3px solid #2c3e50;
+            padding-left: 14px;
+            margin-bottom: 20px;
+        }
+        .history-date {
+            font-size: 13px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+        .history-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 4px 0;
+        }
+        .history-desc {
+            font-size: 13px;
+            color: #4a5568;
+            line-height: 1.4;
+        }
+        
+        /* Слайдер */
+        .photo-slider { text-align: center; }
+        .photo-slider img {
+            width: 100%;
+            border-radius: 16px;
+            cursor: pointer;
+            max-height: 300px;
+            object-fit: contain;
+        }
+        .photo-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+        }
+        .photo-nav button {
+            background: #f0f2f5;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .photo-dots {
+            text-align: center;
+            margin-top: 10px;
+        }
+        .photo-dots span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #ccc;
+            border-radius: 50%;
+            margin: 0 4px;
+            cursor: pointer;
+        }
+        .photo-dots span.active {
+            background: #2c3e50;
+            width: 10px;
+            height: 10px;
+        }
+        
+        /* Модальное окно */
         .modal-photo {
             display: none;
             position: fixed;
@@ -200,7 +287,7 @@ switch($part['status']) {
         
         /* ========== МОБИЛЬНАЯ ВЕРСИЯ ========== */
         @media (max-width: 768px) {
-            body { padding: 16px; }
+            
             .two-columns { flex-direction: column; }
             .left-column, .right-column { flex: auto; }
             .part-name { font-size: 22px; }
@@ -303,24 +390,54 @@ switch($part['status']) {
             <div class="card">
                 <div class="prop-label" style="margin-bottom: 16px;">📜 История операций</div>
                 <?php if(count($operations) > 0): ?>
-                    <?php foreach($operations as $op): ?>
-                        <div class="history-item">
-                            <div class="history-date"><?= date('d.m.Y', strtotime($op['date'])) ?></div>
-                            <div class="history-title">
-                                <?php
-                                    switch($op['operation_type']) {
-                                        case 'arrival': echo '📦 Поступление'; break;
-                                        case 'repair': echo '🔧 Ремонт'; break;
-                                        case 'install': echo '🔩 Установка'; break;
-                                        case 'sale': echo '💰 Продажа'; break;
-                                        case 'write_off': echo '📄 Списание'; break;
-                                        default: echo $op['operation_type'];
-                                    }
-                                ?>
-                            </div>
-                            <div class="history-desc"><?= nl2br(htmlspecialchars($op['description'])) ?></div>
-                        </div>
-                    <?php endforeach; ?>
+                    <?php 
+// Сначала определим, было ли уже поступление до этой операции
+$operationIndex = 0;
+$totalOperations = count($operations);
+foreach($operations as $op): 
+    $operationIndex++;
+    
+    // Проверяем, является ли это первым arrival в истории
+    $isFirstArrival = false;
+    if ($op['operation_type'] == 'arrival') {
+        // Смотрим, были ли другие arrival раньше (с меньшим индексом)
+        $hasEarlierArrival = false;
+        $tempIndex = 0;
+        foreach($operations as $tempOp) {
+            $tempIndex++;
+            if ($tempIndex >= $operationIndex) break;
+            if ($tempOp['operation_type'] == 'arrival') {
+                $hasEarlierArrival = true;
+                break;
+            }
+        }
+        $isFirstArrival = !$hasEarlierArrival;
+    }
+?>
+<div class="history-item">
+    <div class="history-date"><?= date('d.m.Y', strtotime($op['date'])) ?></div>
+    <div class="history-title">
+        <?php
+            if ($op['operation_type'] == 'arrival') {
+                if ($isFirstArrival) {
+                    echo '📦 Поступление';
+                } else {
+                    echo '✅ В наличии';
+                }
+            } else {
+                switch($op['operation_type']) {
+                    case 'repair': echo '🔧 Ремонт'; break;
+                    case 'install': echo '🔩 Установка'; break;
+                    case 'sale': echo '💰 Продажа'; break;
+                    case 'write_off': echo '📄 Списание'; break;
+                    default: echo $op['operation_type'];
+                }
+            }
+        ?>
+    </div>
+    <div class="history-desc"><?= nl2br(htmlspecialchars($op['description'])) ?></div>
+</div>
+<?php endforeach; ?>
                 <?php else: ?>
                     <div style="color:#999; padding: 20px 0; text-align:center">Нет записей</div>
                 <?php endif; ?>

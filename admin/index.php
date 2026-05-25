@@ -378,7 +378,7 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
         <div class="table-card">
             <table>
                 <thead>
-                    <tr><th>ID</th><th>Наименование</th><th>Категории</th><th>Кат.номер</th><th>Статус</th><th>QR</th><th>Действия</th></tr>
+                    <tr><th>ID</th><th>Наименование</th><th>Кат.номер</th><th>Статус</th><th>QR</th><th>Действия</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($parts as $p): 
@@ -393,7 +393,7 @@ function buildCategoryTree($categories, $parentId = null, $level = 0) {
                         <tr onclick="viewPart(<?= $p['id'] ?>)">
                             <td><?= $p['id'] ?></td>
                             <td><strong><?= htmlspecialchars($p['name']) ?></strong></td>
-                            <td class="category-list"><?= htmlspecialchars($partCategories[$p['id']] ?? '—') ?></td>
+                            <!-- <td class="category-list"><?= htmlspecialchars($partCategories[$p['id']] ?? '—') ?></td> -->
                             <td><?= htmlspecialchars($p['catalog_number'] ?? '—') ?></td>
                             <td><span class="status-badge <?= $sc ?>"><?= $st ?></span></td>
                             <td><a href="../generate_qr.php?id=<?= $p['id'] ?>" class="action-link" onclick="event.stopPropagation()">📷</a></td>
